@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 - 코드 생성기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        .card { 
+            background: rgba(17, 24, 39, 0.6); /* bg-gray-900 with opacity */
+            backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-primary { 
+            background: linear-gradient(145deg, #0e7490, #164e63);
+            color: white; 
+            box-shadow: 0 4px 15px rgba(14, 116, 144, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(14, 116, 144, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white bg-cover bg-fixed" style="background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="relative min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-lg mx-auto card rounded-2xl shadow-2xl p-8 border border-cyan-500/20">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-orbitron text-cyan-400">접속 코드 생성기</h1>
+                <p class="text-gray-400 mt-2">CSI: Reading Profiler</p>
+            </div>
+
+            <div class="text-center mb-6">
+                <button id="generate-btn" class="w-full btn-primary font-bold py-4 px-6 rounded-lg text-xl">
+                    오늘의 접속 코드 생성
+                </button>
+            </div>
+
+            <div id="code-display-wrapper" class="hidden bg-black/30 p-6 rounded-lg text-center mt-8 border border-gray-700">
+                <p class="text-gray-400 mb-2">생성된 코드</p>
+                <div class="flex items-center justify-center gap-4">
+                    <p id="code-display" class="text-4xl font-orbitron text-green-400 tracking-widest"></p>
+                    <button id="copy-btn" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg text-sm">복사</button>
+                </div>
+                <p id="copy-status" class="text-green-400 text-xs mt-2 h-4"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const generateBtn = document.getElementById('generate-btn');
+        const codeDisplayWrapper = document.getElementById('code-display-wrapper');
+        const codeDisplay = document.getElementById('code-display');
+        const copyBtn = document.getElementById('copy-btn');
+        const copyStatus = document.getElementById('copy-status');
+
+        generateBtn.addEventListener('click', async () => {
+            generateBtn.textContent = '코드 생성 중...';
+            generateBtn.disabled = true;
+
+            const response = await fetch('/admin/generate-code', { method: 'POST' });
+            const data = await response.json();
+
+            if(data.access_code) {
+                codeDisplay.textContent = data.access_code;
+                codeDisplayWrapper.classList.remove('hidden');
+            }
+            
+            generateBtn.textContent = '새로운 코드 생성';
+            generateBtn.disabled = false;
+        });
+
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(codeDisplay.textContent).then(() => {
+                copyStatus.textContent = '복사되었습니다!';
+                setTimeout(() => { copyStatus.textContent = ''; }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>
