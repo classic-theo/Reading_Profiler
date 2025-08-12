@@ -130,19 +130,19 @@ def submit_result():
 
 # --- Helper Functions ---
 def assemble_test_for_age(age, num_questions):
-    """나이에 맞춰 다양한 장르와 카테고리의 문제를 동적으로 조립합니다."""
+    """나이에 맞춰 다양한 장르와 카테고리의 문제를 동적으로 조립합니다. (안정화 버전)"""
     if age <= 12: age_group = 'low'
     elif age <= 16: age_group = 'mid'
     else: age_group = 'high'
     
     candidate_questions = [q for q in QUESTION_BANK if q['age_group'] == age_group]
     
-    # [ROBUSTNESS FIX] If we don't have enough questions, just return all of them shuffled.
+    # [안정화 로직] 요청된 문항 수보다 전체 문항 수가 적으면, 있는 문항만 모두 반환합니다.
     if len(candidate_questions) < num_questions:
         random.shuffle(candidate_questions)
         return candidate_questions
 
-    # If we have enough questions, proceed with balanced sampling.
+    # 문항 수가 충분하면, 문학/비문학을 균형 있게 섞어서 15개를 추출합니다.
     questions_by_category = {
         'literature': [q for q in candidate_questions if q['category'] == 'literature'],
         'non-literature': [q for q in candidate_questions if q['category'] == 'non-literature']
@@ -241,4 +241,3 @@ def skill_to_korean(skill):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)
-
