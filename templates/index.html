@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CSI 독서 프로파일러</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js 라이브러리 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
@@ -27,6 +29,7 @@
         .prose h3 { font-size: 1.25rem; color: #67e8f9; margin-top: 1.5rem; margin-bottom: 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #0e7490; }
         .prose ul { list-style-type: none; padding-left: 0; }
         .prose li { background-color: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.5rem; }
+        .prose strong { color: #f0f9ff; }
     </style>
 </head>
 <body class="bg-gray-900 text-white bg-cover bg-fixed" style="background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');">
@@ -91,17 +94,12 @@
                 <div id="improvement-message" class="bg-teal-900/50 border-2 border-teal-600 text-teal-200 p-5 rounded-lg mb-8 text-center leading-relaxed hidden text-lg"></div>
 
                 <div class="grid lg:grid-cols-5 gap-8">
-                    <!-- 왼쪽: 능력치 분석 (표 형식으로 변경) -->
+                    <!-- 왼쪽: 능력치 분석 (그래프로 변경) -->
                     <div class="lg:col-span-2">
                         <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">능력치 분석</h2>
-                        <table class="w-full text-left">
-                            <thead class="text-xs text-cyan-300 uppercase bg-gray-700/50">
-                                <tr><th scope="col" class="px-6 py-3">측정 영역</th><th scope="col" class="px-6 py-3">점수</th></tr>
-                            </thead>
-                            <tbody id="result-analysis-table">
-                                <!-- JS로 데이터가 채워집니다 -->
-                            </tbody>
-                        </table>
+                        <div class="w-full h-64 md:h-80">
+                            <canvas id="skillChart"></canvas>
+                        </div>
                     </div>
                     <!-- 오른쪽: 독서 성향 및 속도 분석 -->
                     <div class="lg:col-span-3">
@@ -125,7 +123,9 @@
                      <div id="coaching-guide" class="prose text-gray-300 max-w-none card p-6 rounded-xl"></div>
                 </div>
 
-                <div id="theoretical-basis" class="mt-10 pt-6 border-t border-gray-700 text-center text-sm text-gray-400"></div>
+                <!-- 테스트 설계 기반 (하이라이트 처리) -->
+                <div id="theoretical-basis" class="mt-10 pt-6 border-t border-gray-700 text-center">
+                </div>
             </div>
             <div class="mt-8 flex flex-col md:flex-row gap-4">
                 <button id="share-link-btn" class="w-full btn-secondary font-bold py-3 rounded-lg">결과 링크 복사</button>
@@ -147,6 +147,7 @@
     let userInfo = {}, questions = [], currentQuestionIndex = 0, userAnswers = [];
     let solvingTimes = [];
     let questionStartTime;
+    let skillChartInstance = null; // 차트 인스턴스를 저장할 변수
 
     // --- Functions ---
     function switchScreen(screenName) {
@@ -293,22 +294,55 @@
         
         const basisContainer = document.getElementById('theoretical-basis');
         if (data.theoretical_basis) {
-            basisContainer.innerHTML = `<p class="font-bold mb-2">테스트 설계 기반</p><p>${data.theoretical_basis}</p>`;
+            basisContainer.innerHTML = `<div class="bg-gray-700/50 p-4 rounded-lg"><p class="font-bold mb-2 text-lg text-cyan-300">테스트 설계 기반</p><p class="text-gray-300">${data.theoretical_basis}</p></div>`;
         }
 
         const tableBody = document.getElementById('result-analysis-table');
         tableBody.innerHTML = '';
         const skillMap = { comprehension: '정보 이해력', logic: '논리 분석력', inference: '단서 추론력', critical_thinking: '비판적 사고력', sentence_ordering: '문장 배열력', paragraph_ordering: '문단 배열력', title: '제목 생성력', theme: '주제 파악력', creativity: '창의적 서술력', vocabulary: '어휘력' };
+        
+        const labels = [];
+        const scores = [];
         for (const [skill, score] of Object.entries(data.analysis)) {
-            if(typeof score === 'number') {
-                 const row = `
-                    <tr class="bg-white/5 border-b border-gray-700">
-                        <th scope="row" class="px-6 py-4 font-medium text-gray-200 whitespace-nowrap">${skillMap[skill] || skill}</th>
-                        <td class="px-6 py-4">${score}점</td>
-                    </tr>`;
-                 tableBody.innerHTML += row;
+            if(typeof score === 'number' && skillMap[skill]) {
+                 labels.push(skillMap[skill]);
+                 scores.push(score);
             }
         }
+        
+        // 레이더 차트 생성
+        const chartCanvas = document.getElementById('skillChart').getContext('2d');
+        if (skillChartInstance) {
+            skillChartInstance.destroy();
+        }
+        skillChartInstance = new Chart(chartCanvas, {
+            type: 'radar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '능력치 점수',
+                    data: scores,
+                    backgroundColor: 'rgba(34, 211, 238, 0.2)',
+                    borderColor: 'rgba(34, 211, 238, 1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(34, 211, 238, 1)'
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
+                        grid: { color: 'rgba(255, 255, 255, 0.2)' },
+                        pointLabels: { color: '#e5e7eb', font: { size: 12 } },
+                        ticks: { color: '#9ca3af', backdropColor: 'rgba(0,0,0,0)', stepSize: 20 },
+                        min: 0,
+                        max: 100
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
         
         const genreContainer = document.getElementById('genre-analysis-result');
         genreContainer.innerHTML = '';
@@ -357,3 +391,4 @@
     </script>
 </body>
 </html>
+
