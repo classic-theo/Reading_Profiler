@@ -137,14 +137,18 @@ def assemble_test_for_age(age, num_questions):
     
     candidate_questions = [q for q in QUESTION_BANK if q['age_group'] == age_group]
     
-    # 1. 카테고리별(문학/비문학)로 문제 분류
+    # [ROBUSTNESS FIX] If we don't have enough questions, just return all of them shuffled.
+    if len(candidate_questions) < num_questions:
+        random.shuffle(candidate_questions)
+        return candidate_questions
+
+    # If we have enough questions, proceed with balanced sampling.
     questions_by_category = {
         'literature': [q for q in candidate_questions if q['category'] == 'literature'],
         'non-literature': [q for q in candidate_questions if q['category'] == 'non-literature']
     }
 
     final_test = []
-    # 2. 문학과 비문학에서 균형 있게 추출 (예: 7개, 8개)
     num_lit = num_questions // 2
     num_non_lit = num_questions - num_lit
 
@@ -153,14 +157,13 @@ def assemble_test_for_age(age, num_questions):
     if questions_by_category['non-literature']:
         final_test.extend(random.sample(questions_by_category['non-literature'], min(num_non_lit, len(questions_by_category['non-literature']))))
 
-    # 만약 한쪽 카테고리 문제가 부족해 15개가 채워지지 않았다면, 다른 쪽에서 더 채워넣음
     remaining = num_questions - len(final_test)
     if remaining > 0:
-        # 이미 뽑힌 문제를 제외한 나머지 문제들
         remaining_pool = [q for q in candidate_questions if q not in final_test]
-        final_test.extend(random.sample(remaining_pool, min(remaining, len(remaining_pool))))
+        if remaining_pool:
+             final_test.extend(random.sample(remaining_pool, min(remaining, len(remaining_pool))))
 
-    random.shuffle(final_test) # 최종 문제 순서 섞기
+    random.shuffle(final_test)
     return final_test
 
 
@@ -238,3 +241,4 @@ def skill_to_korean(skill):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)
+
