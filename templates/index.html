@@ -161,7 +161,6 @@
         if (!name || !age || !phone) { alert('이름, 나이, 핸드폰 번호를 모두 입력해주세요.'); return; }
         userInfo = { name, age, phone, date: new Date().toLocaleDateString() };
         
-        // 로딩 표시
         document.getElementById('start-btn').textContent = '시험지 구성 중...';
         document.getElementById('start-btn').disabled = true;
 
@@ -207,10 +206,14 @@
                 });
             }
 
-            question.options.forEach(option => {
-                const optionId = `q${currentQuestionIndex}_${option.replace(/\s/g, '')}`;
-                questionOptions.innerHTML += `<div><input type="radio" id="${optionId}" name="q${currentQuestionIndex}" value="${option}" class="hidden peer"><label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50">${option}</label></div>`;
-            });
+            if (question.type === 'text_input') {
+                questionOptions.innerHTML = `<textarea id="text-answer-input" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none" rows="4" placeholder="자유롭게 생각을 서술하시오..."></textarea>`;
+            } else if (question.options && question.options.length > 0) {
+                question.options.forEach(option => {
+                    const optionId = `q${currentQuestionIndex}_${option.replace(/\s/g, '')}`;
+                    questionOptions.innerHTML += `<div><input type="radio" id="${optionId}" name="q${currentQuestionIndex}" value="${option}" class="hidden peer"><label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50">${option}</label></div>`;
+                });
+            }
             questionContainer.style.opacity = 1;
         }, 300);
     }
@@ -219,9 +222,17 @@
         const elapsedTime = Math.round((new Date() - questionStartTime) / 1000);
         solvingTimes.push(elapsedTime);
 
-        const selectedOption = document.querySelector(`input[name="q${currentQuestionIndex}"]:checked`);
-        if (!selectedOption) { alert('단서를 선택해주십시오.'); return; }
-        userAnswers[currentQuestionIndex] = selectedOption.value;
+        const question = questions[currentQuestionIndex];
+        let answer = '';
+        if (question.type === 'text_input') {
+            answer = document.getElementById('text-answer-input').value.trim();
+            if (answer.length === 0) { alert('답변을 입력해주십시오.'); return; }
+        } else {
+            const selectedOption = document.querySelector(`input[name="q${currentQuestionIndex}"]:checked`);
+            if (!selectedOption) { alert('단서를 선택해주십시오.'); return; }
+            answer = selectedOption.value;
+        }
+        userAnswers[currentQuestionIndex] = answer;
         
         currentQuestionIndex++;
         if (currentQuestionIndex < questions.length) {
@@ -235,12 +246,7 @@
         switchScreen('result');
         document.getElementById('result-analysis').innerHTML = '<p class="text-center col-span-full text-lg">최종 보고서 생성 중...</p>';
         
-        const payload = {
-            userInfo,
-            answers: userAnswers,
-            solvingTimes: solvingTimes,
-            questions: questions
-        };
+        const payload = { userInfo, answers: userAnswers, solvingTimes: solvingTimes, questions: questions };
 
         const response = await fetch('/submit-result', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         const data = await response.json();
@@ -285,19 +291,35 @@
         genreContainer.innerHTML = '';
         if(data.analysis.genre_bias) {
             for (const [genre, score] of Object.entries(data.analysis.genre_bias)) {
-                genreContainer.innerHTML += `<div class="flex justify-between items-center"><span class="capitalize">${genre}</span><span class="font-bold">${score}점</span></div>`;
+                genreContainer.innerHTML += `<div class="flex justify-between items-center text-gray-300"><span class="capitalize">${genre}</span><span class="font-bold text-white">${score}점</span></div>`;
             }
         }
 
         const timeContainer = document.getElementById('time-analysis-result');
         timeContainer.innerHTML = '';
         if(data.analysis.time_analysis) {
-            timeContainer.innerHTML = `<div class="flex justify-between items-center"><span class="capitalize">총 해결 시간</span><span class="font-bold">${Math.round(data.analysis.time_analysis.total_time)}초</span></div>`;
+            timeContainer.innerHTML = `<div class="flex justify-between items-center text-gray-300"><span class="capitalize">총 해결 시간</span><span class="font-bold text-white">${Math.round(data.analysis.time_analysis.total_time)}초</span></div>`;
         }
     }
 
-    // (이하 공유 버튼 등 나머지 함수는 이전과 동일)
-    // ...
+    // --- Event Listeners ---
+    loginBtn.addEventListener('click', handleLogin);
+    startBtn.addEventListener('click', startTest);
+    nextBtn.addEventListener('click', handleNext);
+    restartBtn.addEventListener('click', () => location.reload());
+    shareLinkBtn.addEventListener('click', () => alert('링크 복사 기능은 준비 중입니다.'));
+    shareImageBtn.addEventListener('click', () => {
+        const captureArea = document.getElementById('result-capture-area');
+        html2canvas(captureArea, { backgroundColor: '#111827', useCORS: true }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `${userInfo.name}_독서프로파일러_결과.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    });
+
+    // --- Initial Load ---
+    switchScreen('login');
     </script>
 </body>
 </html>
