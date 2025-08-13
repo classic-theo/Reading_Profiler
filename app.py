@@ -11,12 +11,11 @@ from firebase_admin import credentials, firestore
 
 # --- Firebase 초기화 ---
 try:
-    # Render 환경 변수에서 인증 정보 가져오기
     creds_json_str = os.environ.get('GOOGLE_CREDENTIALS')
     if creds_json_str:
         creds_dict = json.loads(creds_json_str)
         cred = credentials.Certificate(creds_dict)
-    else: # 로컬 환경
+    else: # 로컬 테스트 환경
         cred = credentials.Certificate("credentials.json")
     firebase_admin.initialize_app(cred)
     db = firestore.client()
@@ -28,7 +27,6 @@ except Exception as e:
 # --- 구글 시트 연동 ---
 try:
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    # 'creds_dict'가 정의되어 있는지 확인 후 사용
     if 'creds_dict' in locals() and creds_dict:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     else:
@@ -47,12 +45,10 @@ active_codes = {}
 # --- 관리자 페이지 ---
 @app.route('/admin')
 def admin_dashboard():
-    """관리자 페이지를 렌더링합니다."""
     return render_template('admin.html')
 
 @app.route('/admin/generate-code', methods=['POST'])
 def admin_generate_code():
-    """새로운 접속 코드를 생성합니다."""
     code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     active_codes[code] = {'status': 'active', 'created_at': datetime.now().isoformat()}
     return jsonify({'access_code': code})
@@ -60,12 +56,10 @@ def admin_generate_code():
 # --- 사용자 페이지 ---
 @app.route('/')
 def home():
-    """메인 사용자 화면을 렌더링합니다."""
     return render_template('index.html')
 
 @app.route('/validate-code', methods=['POST'])
 def validate_code():
-    """사용자가 입력한 코드를 검증합니다."""
     user_code = request.get_json().get('code')
     if user_code in active_codes:
         del active_codes[user_code]
@@ -74,7 +68,6 @@ def validate_code():
 
 @app.route('/get-test', methods=['POST'])
 def get_test():
-    """나이에 맞는 문제를 Firestore에서 가져옵니다."""
     if not db:
         return jsonify({"error": "Database connection failed"}), 500
     
@@ -84,14 +77,9 @@ def get_test():
 
 @app.route('/submit-result', methods=['POST'])
 def submit_result():
-    """테스트 결과를 받아 분석하고 저장합니다."""
     data = request.get_json()
-    user_info = data.get('userInfo')
-    answers = data.get('answers')
-    solving_times = data.get('solvingTimes')
-    questions = data.get('questions')
+    user_info, answers, solving_times, questions = data.get('userInfo'), data.get('answers'), data.get('solvingTimes'), data.get('questions')
     
-    # 분석 로직 호출
     analysis_result = analyze_answers(questions, answers)
     genre_bias_result = analyze_genre_bias(questions, answers)
     time_analysis_result = analyze_solving_time(questions, solving_times, answers)
@@ -102,7 +90,6 @@ def submit_result():
     coaching_guide = generate_coaching_guide(analysis_result, questions, answers)
     theoretical_basis = "본 테스트는 블룸의 교육 목표 분류학, 인지 부하 이론, 스키마 이론, 메타인지 전략 등을 종합적으로 고려하여 설계된 다차원 독서력 진단 프로그램입니다."
 
-    # Google Sheets에 저장
     if sheet:
         try:
             row_to_insert = [
@@ -122,7 +109,6 @@ def submit_result():
 
 # --- Helper Functions ---
 def assemble_test_for_age(age, num_questions):
-    """나이에 맞춰 Firestore에서 문제를 가져와 조립합니다."""
     if age <= 12: age_group = 'low'
     elif age <= 16: age_group = 'mid'
     else: age_group = 'high'
@@ -140,7 +126,6 @@ def assemble_test_for_age(age, num_questions):
         random.shuffle(candidate_questions)
         return candidate_questions
 
-    # 문학/비문학 균형 추출 로직
     questions_by_category = {
         'literature': [q for q in candidate_questions if q.get('category') == 'literature'],
         'non-literature': [q for q in candidate_questions if q.get('category') == 'non-literature']
@@ -163,7 +148,6 @@ def assemble_test_for_age(age, num_questions):
 
     random.shuffle(final_test)
     return final_test
-
 
 def analyze_answers(questions, answers):
     score = { 'comprehension': 0, 'logic': 0, 'inference': 0, 'critical_thinking': 0, 'vocabulary': 0, 'theme': 0, 'title': 0, 'creativity': 0, 'sentence_ordering': 0, 'paragraph_ordering': 0 }
@@ -257,5 +241,6 @@ def skill_to_korean(skill):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)
+
 
 
