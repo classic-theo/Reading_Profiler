@@ -28,7 +28,8 @@ except Exception as e:
 # --- 구글 시트 연동 ---
 try:
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    if 'creds_dict' in locals():
+    # 'creds_dict'가 정의되어 있는지 확인 후 사용
+    if 'creds_dict' in locals() and creds_dict:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     else:
         creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
@@ -139,32 +140,122 @@ def assemble_test_for_age(age, num_questions):
         random.shuffle(candidate_questions)
         return candidate_questions
 
-    # (이하 문학/비문학 균형 추출 로직은 이전과 동일)
-    # ...
-    return random.sample(candidate_questions, num_questions)
+    # 문학/비문학 균형 추출 로직
+    questions_by_category = {
+        'literature': [q for q in candidate_questions if q.get('category') == 'literature'],
+        'non-literature': [q for q in candidate_questions if q.get('category') == 'non-literature']
+    }
+
+    final_test = []
+    num_lit = num_questions // 2
+    num_non_lit = num_questions - num_lit
+
+    if questions_by_category['literature']:
+        final_test.extend(random.sample(questions_by_category['literature'], min(num_lit, len(questions_by_category['literature']))))
+    if questions_by_category['non-literature']:
+        final_test.extend(random.sample(questions_by_category['non-literature'], min(num_non_lit, len(questions_by_category['non-literature']))))
+
+    remaining = num_questions - len(final_test)
+    if remaining > 0:
+        remaining_pool = [q for q in candidate_questions if q not in final_test]
+        if remaining_pool:
+             final_test.extend(random.sample(remaining_pool, min(remaining, len(remaining_pool))))
+
+    random.shuffle(final_test)
+    return final_test
 
 
 def analyze_answers(questions, answers):
-    # (이하 모든 분석 및 코칭 가이드 생성 함수는 이전과 동일합니다)
-    # ...
-    pass
+    score = { 'comprehension': 0, 'logic': 0, 'inference': 0, 'critical_thinking': 0, 'vocabulary': 0, 'theme': 0, 'title': 0, 'creativity': 0, 'sentence_ordering': 0, 'paragraph_ordering': 0 }
+    skill_counts = {k: 0 for k in score}
+    for i, q in enumerate(questions):
+        skill = q.get('skill')
+        if skill in skill_counts:
+            skill_counts[skill] += 1
+            if q.get('type') == 'text_input':
+                if i < len(answers) and answers[i] and len(answers[i]) > 10: score[skill] += 1
+            elif i < len(answers) and answers[i] == q.get('answer'):
+                score[skill] += 1
+    final_scores = {}
+    for skill, count in skill_counts.items():
+        if count > 0:
+            final_scores[skill] = round((score[skill] / count) * 100)
+    return final_scores
 
 def analyze_genre_bias(questions, answers):
-    # ...
-    pass
+    genre_scores, genre_counts = {}, {}
+    for i, q in enumerate(questions):
+        genre = q.get('genre', 'etc')
+        genre_counts[genre] = genre_counts.get(genre, 0) + 1
+        if i < len(answers) and answers[i] == q.get('answer'):
+            genre_scores[genre] = genre_scores.get(genre, 0) + 1
+    bias_result = {}
+    for genre, count in genre_counts.items():
+        bias_result[genre] = round((genre_scores.get(genre, 0) / count) * 100)
+    return bias_result
 
 def analyze_solving_time(questions, solving_times, answers):
-    # ...
-    pass
+    total_time = sum(solving_times)
+    total_expected_time = sum(q.get('expected_time', 30) for q in questions)
+    
+    fast_correct, slow_wrong = 0, 0
+    
+    for i, q in enumerate(questions):
+        if i < len(answers) and i < len(solving_times):
+            is_correct = answers[i] == q.get('answer')
+            time_diff = solving_times[i] - q.get('expected_time', 30)
+            if is_correct and time_diff < 0: fast_correct += 1
+            elif not is_correct and time_diff > 0: slow_wrong += 1
+
+    agility_score = (fast_correct - slow_wrong) / len(questions) if questions else 0
+    
+    if agility_score > 0.3: agility_comment = "어려운 문제도 빠르고 정확하게 푸는 '인지 민첩성'이 뛰어납니다."
+    elif agility_score < -0.3: agility_comment = "시간을 들여 신중하게 풀었음에도 실수가 잦은 경향이 있어, 기본 개념을 재점검할 필요가 있습니다."
+    else: agility_comment = "문제 난이도에 따라 안정적인 문제 해결 속도를 보입니다."
+
+    return {
+        'total_time': total_time,
+        'time_vs_expected': round((total_time / total_expected_time) * 100) if total_expected_time > 0 else 100,
+        'agility_comment': agility_comment
+    }
 
 def generate_coaching_guide(result, questions, answers):
-    # ...
-    pass
+    wrong_answers_feedback = []
+    for i, q in enumerate(questions):
+        if i < len(answers) and answers[i] != q.get('answer'):
+            user_answer_text = answers[i]
+            if q.get('type') == 'text_input':
+                wrong_answers_feedback.append(f"- **{i+1}번 문제({skill_to_korean(q['skill'])}) 분석:** 서술형 문제는 정해진 답은 없지만, 자신의 생각을 논리적으로 표현하는 연습이 더 필요해 보입니다.")
+                continue
+            for opt in q.get('options', []):
+                if opt['text'] == user_answer_text:
+                    feedback = opt.get('feedback', '정확한 개념을 다시 확인해볼 필요가 있습니다.')
+                    wrong_answers_feedback.append(f"- **{i+1}번 문제({skill_to_korean(q['skill'])}) 분석:** '{user_answer_text}'를 선택하셨군요. {feedback}")
+                    break
+    
+    strengths = [skill_to_korean(s) for s, score in result.items() if isinstance(score, int) and score >= 80]
+    weaknesses = [skill_to_korean(s) for s, score in result.items() if isinstance(score, int) and score < 60]
+    
+    total_review = "### 📋 종합 소견\n\n"
+    if strengths: total_review += f"**강점 분석:**\n{', '.join(strengths)} 영역에서 뛰어난 이해도를 보여주셨습니다.\n\n"
+    if weaknesses: total_review += f"**보완점 분석:**\n반면, {', '.join(weaknesses)} 영역에서는 추가적인 학습이 필요해 보입니다.\n\n"
+    total_review += "**성장 전략 제안:**\n다양한 장르의 글을 꾸준히 접하는 것을 추천합니다."
+
+    guide = "### 💡 오답 노트\n"
+    if wrong_answers_feedback: guide += "\n".join(wrong_answers_feedback)
+    else: guide += "- 모든 문제를 완벽하게 해결하셨습니다! 훌륭한 프로파일러입니다.\n"
+    
+    guide += "\n" + total_review
+    return guide
 
 def skill_to_korean(skill):
-    # ...
-    pass
+    return {
+        'comprehension': '정보 이해력', 'logic': '논리 분석력', 'inference': '단서 추론력', 'critical_thinking': '비판적 사고력',
+        'vocabulary': '어휘력', 'theme': '주제 파악력', 'title': '제목 생성력', 'creativity': '창의적 서술력',
+        'sentence_ordering': '문장 배열력', 'paragraph_ordering': '문단 배열력'
+    }.get(skill, skill)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)
+
 
