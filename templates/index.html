@@ -263,16 +263,17 @@
 
     async function submitAndShowResult() {
         switchScreen('result');
-        document.getElementById('result-analysis-table').innerHTML = '<tr><td colspan="2" class="text-center py-4">최종 보고서 생성 중...</td></tr>';
+        document.getElementById('skillChart').style.display = 'none'; // 차트 숨기기
         
         const payload = { userInfo, answers: userAnswers, solvingTimes: solvingTimes, questions: questions };
 
         const response = await fetch('/submit-result', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         const data = await response.json();
         if (data.success) {
+            document.getElementById('skillChart').style.display = 'block'; // 차트 보이기
             displayResult(data);
         } else {
-            document.getElementById('result-analysis-table').innerHTML = `<tr><td colspan="2" class="text-center py-4 text-red-400">${data.message || '결과를 불러오지 못했습니다.'}</td></tr>`;
+            // 에러 처리 UI 필요
         }
     }
 
@@ -297,8 +298,6 @@
             basisContainer.innerHTML = `<div class="bg-gray-700/50 p-4 rounded-lg"><p class="font-bold mb-2 text-lg text-cyan-300">테스트 설계 기반</p><p class="text-gray-300">${data.theoretical_basis}</p></div>`;
         }
 
-        const tableBody = document.getElementById('result-analysis-table');
-        tableBody.innerHTML = '';
         const skillMap = { comprehension: '정보 이해력', logic: '논리 분석력', inference: '단서 추론력', critical_thinking: '비판적 사고력', sentence_ordering: '문장 배열력', paragraph_ordering: '문단 배열력', title: '제목 생성력', theme: '주제 파악력', creativity: '창의적 서술력', vocabulary: '어휘력' };
         
         const labels = [];
@@ -391,4 +390,5 @@
     </script>
 </body>
 </html>
+
 
