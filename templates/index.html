@@ -225,7 +225,7 @@
             }
 
             if (question.type === 'text_input') {
-                questionOptions.innerHTML = `<textarea id="text-answer-input" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none" rows="4" placeholder="자유롭게 생각을 서술하시오..."></textarea>`;
+                questionOptions.innerHTML = `<div class="md:col-span-2"><textarea id="text-answer-input" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none" rows="4" placeholder="자유롭게 생각을 서술하시오..."></textarea></div>`;
             } else if (question.options && question.options.length > 0) {
                 question.options.forEach(option => {
                     const optionText = typeof option === 'object' ? option.text : option;
@@ -309,7 +309,8 @@
             }
         }
         
-        // 레이더 차트 생성
+        const isAllZero = scores.every(score => score === 0);
+
         const chartCanvas = document.getElementById('skillChart').getContext('2d');
         if (skillChartInstance) {
             skillChartInstance.destroy();
@@ -334,7 +335,15 @@
                         angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
                         grid: { color: 'rgba(255, 255, 255, 0.2)' },
                         pointLabels: { color: '#e5e7eb', font: { size: 12 } },
-                        ticks: { color: '#9ca3af', backdropColor: 'rgba(0,0,0,0)', stepSize: 20 },
+                        ticks: {
+                            color: '#9ca3af',
+                            backdropColor: 'rgba(0,0,0,0)',
+                            stepSize: 20,
+                            callback: function(value, index, values) {
+                                if (isAllZero && value !== 0) return '';
+                                return value;
+                            }
+                        },
                         min: 0,
                         max: 100
                     }
