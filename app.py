@@ -9,37 +9,42 @@ from flask import Flask, render_template, jsonify, request
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# --- Firebase 초기화 ---
-try:
-    creds_json_str = os.environ.get('GOOGLE_CREDENTIALS')
-    if creds_json_str:
-        creds_dict = json.loads(creds_json_str)
-        cred = credentials.Certificate(creds_dict)
-    else: # 로컬 테스트 환경
-        cred = credentials.Certificate("credentials.json")
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("Firestore와 성공적으로 연결되었습니다.")
-except Exception as e:
-    print(f"Firestore 연결 오류: {e}")
-    db = None
-
-# --- 구글 시트 연동 ---
-try:
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    if 'creds_dict' in locals() and creds_dict:
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    else:
-        creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-    client = gspread.authorize(creds)
-    sheet = client.open("독서력 진단 결과").sheet1
-    print("Google Sheets와 성공적으로 연결되었습니다.")
-except Exception as e:
-    print(f"Google Sheets 연결 오류: {e}")
-    sheet = None
-
 # --- 초기 설정 ---
 app = Flask(__name__, template_folder='templates')
+db = None
+sheet = None
+
+# --- [NEW] Robust Authentication Block ---
+# 1. 환경 변수에서 비밀 키 문자열 가져오기
+creds_json_str = os.environ.get('GOOGLE_CREDENTIALS')
+
+# 2. 비밀 키가 존재하는지 먼저 확인
+if not creds_json_str:
+    print("CRITICAL ERROR: GOOGLE_CREDENTIALS 환경 변수가 설정되지 않았거나 비어있습니다.")
+else:
+    try:
+        # 3. 비밀 키 문자열을 파이썬 객체로 변환
+        creds_dict = json.loads(creds_json_str)
+
+        # 4. Firebase (Firestore) 연결 시도
+        cred_firebase = credentials.Certificate(creds_dict)
+        firebase_admin.initialize_app(cred_firebase)
+        db = firestore.client()
+        print("Firestore와 성공적으로 연결되었습니다.")
+
+        # 5. Google Sheets 연결 시도
+        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        creds_sheets = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        client = gspread.authorize(creds_sheets)
+        sheet = client.open("독서력 진단 결과").sheet1
+        print("Google Sheets와 성공적으로 연결되었습니다.")
+
+    except Exception as e:
+        print(f"CRITICAL ERROR: GOOGLE_CREDENTIALS 환경 변수를 파싱하거나 서비스에 연결하는 중 오류 발생: {e}")
+        # 오류 발생 시 db와 sheet를 None으로 설정하여 서비스가 비정상적으로 작동하지 않도록 방지
+        db = None
+        sheet = None
+
 active_codes = {}
 
 # --- 관리자 페이지 ---
@@ -69,7 +74,7 @@ def validate_code():
 @app.route('/get-test', methods=['POST'])
 def get_test():
     if not db:
-        return jsonify({"error": "Database connection failed"}), 500
+        return jsonify({"error": "Database connection failed. 관리자에게 문의하세요."}), 500
     
     age = int(request.get_json().get('age', 0))
     questions = assemble_test_for_age(age, 15)
@@ -212,7 +217,7 @@ def generate_coaching_guide(result, questions, answers):
                 wrong_answers_feedback.append(f"- **{i+1}번 문제({skill_to_korean(q['skill'])}) 분석:** 서술형 문제는 정해진 답은 없지만, 자신의 생각을 논리적으로 표현하는 연습이 더 필요해 보입니다.")
                 continue
             for opt in q.get('options', []):
-                if opt['text'] == user_answer_text:
+                if opt.get('text') == user_answer_text:
                     feedback = opt.get('feedback', '정확한 개념을 다시 확인해볼 필요가 있습니다.')
                     wrong_answers_feedback.append(f"- **{i+1}번 문제({skill_to_korean(q['skill'])}) 분석:** '{user_answer_text}'를 선택하셨군요. {feedback}")
                     break
@@ -241,6 +246,7 @@ def skill_to_korean(skill):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)
+
 
 
 
