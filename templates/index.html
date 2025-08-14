@@ -22,6 +22,7 @@
         .glowing-border { box-shadow: 0 0 5px rgba(34, 211, 238, 0.5), 0 0 10px rgba(34, 211, 238, 0.3); }
         .option-label { transition: all 0.2s ease-in-out; }
         .peer:checked + .option-label { background-color: rgba(8, 145, 178, 0.3); border-color: #06b6d4; transform: scale(1.02); }
+        /* ✨ 서술형 답변창 스타일 (요청사항 반영) */
         .essay-textarea { width: 100%; min-height: 150px; background-color: rgba(17, 24, 39, 0.8); border: 1px solid #4b5563; border-radius: 0.5rem; color: #f9fafb; padding: 0.75rem; resize: vertical; transition: border-color 0.3s; }
         .essay-textarea:focus { outline: none; border-color: #06b6d4; }
         .char-counter { text-align: right; color: #9ca3af; font-size: 0.9em; margin-top: 0.5rem; }
@@ -133,6 +134,7 @@
                 });
                 const data = await response.json();
                 if (data.success) {
+                    state.userInfo.accessCode = codeInput.value.toUpperCase(); // 사용된 코드 저장
                     switchScreen('userInfo');
                 } else {
                     errorEl.textContent = data.message || '접근에 실패했습니다.';
@@ -152,7 +154,8 @@
                 alert('이름과 나이를 모두 입력해주세요.');
                 return;
             }
-            state.userInfo = { name, age };
+            state.userInfo.name = name;
+            state.userInfo.age = age;
             
             startBtn.disabled = true;
             startBtn.textContent = '사건 파일 구성 중...';
@@ -198,7 +201,7 @@
                             <label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50">${optionText}</label>
                         </div>`;
                 });
-            } else if (question.type === 'essay') {
+            } else if (question.type === 'essay') { // ✨ 'text_input'을 'essay'로 변경
                 questionOptions.classList.remove('grid', 'md:grid-cols-2', 'gap-4');
                 questionOptions.innerHTML = `
                     <div>
@@ -206,9 +209,14 @@
                         <div id="char-counter" class="char-counter">0자</div>
                     </div>`;
                 
+                // ✨ 글자 수 카운터 이벤트 리스너 추가
                 document.getElementById('essay-answer').addEventListener('input', (e) => {
                     const currentLength = e.target.value.length;
-                    document.getElementById('char-counter').textContent = `${currentLength}자`;
+                    const counter = document.getElementById('char-counter');
+                    counter.textContent = `${currentLength}자`;
+                    if (question.minChars) {
+                        counter.style.color = currentLength >= question.minChars ? '#34d399' : '#9ca3af';
+                    }
                     updateNextButtonState();
                 });
             }
@@ -222,9 +230,9 @@
                 if (document.querySelector(`input[name="q${state.currentQuestionIndex}"]:checked`)) {
                     isAnswered = true;
                 }
-            } else {
+            } else if (question.type === 'essay') {
                 const text = document.getElementById('essay-answer').value;
-                if (text.length >= question.minChars) {
+                if (text.length >= (question.minChars || 1)) { // 최소 글자 수 조건 확인
                     isAnswered = true;
                 }
             }
@@ -266,7 +274,6 @@
                 if (resultData.success) {
                     switchScreen('result');
                     document.getElementById('result-name').textContent = `${state.userInfo.name} 프로파일러 최종 보고서`;
-                    // marked.js를 사용하여 마크다운을 HTML로 변환
                     document.getElementById('result-summary').innerHTML = marked.parse(resultData.report.overall_comment);
                 } else {
                     alert('결과를 분석하는 데 실패했습니다: ' + resultData.error);
@@ -293,4 +300,3 @@
     </script>
 </body>
 </html>
-
