@@ -61,7 +61,6 @@ def serve_index():
     """
     return render_template('index.html')
 
-# ✨ 해결책: /admin 주소에 대한 라우팅 규칙 추가
 @app.route('/admin')
 def serve_admin():
     """
@@ -69,12 +68,27 @@ def serve_admin():
     """
     return render_template('admin.html')
 
+# ✨ 해결책: 접근 코드 검증을 위한 API 경로 추가
+@app.route('/validate-code', methods=['POST'])
+def validate_code():
+    """
+    접근 코드를 검증합니다. (현재는 시연을 위해 모든 코드를 유효 처리)
+    """
+    data = request.get_json()
+    code = data.get('code')
+    # 실제 애플리케이션에서는 DB에 저장된 유효한 코드와 비교해야 합니다.
+    if code: 
+        print(f"Access code received and validated: {code}")
+        return jsonify({"success": True})
+    return jsonify({"success": False, "message": "유효하지 않은 코드입니다."})
+
 
 @app.route('/get-test', methods=['POST'])
 def get_test():
     """
     테스트 문항을 반환합니다. (현재는 Mock 데이터 사용)
     """
+    # 실제 서비스에서는 DB에서 문제를 가져오는 로직으로 변경해야 합니다.
     mock_questions = [
         { 'id': 'q1', 'type': 'multiple_choice', 'title': '[사건 파일 No.301] - 선호하는 정보 유형', 'passage': '새로운 사건 정보를 접할 때, 당신의 본능은 어떤 자료로 가장 먼저 향합니까? 사건의 전체적인 그림을 보는 것을 선호하나요, 아니면 핵심 인물이나 구체적인 증거에 집중하는 편인가요?', 'options': ['사건 개요 및 요약 보고서', '관련 인물들의 상세 프로필', '사건 현장 사진 및 증거물 목록', '과거 유사 사건 기록'], 'category': 'non-literature' },
         { 'id': 'q2', 'type': 'multiple_choice', 'title': '[사건 파일 No.302] - 분석 환경', 'passage': '복잡하고 민감한 사건을 분석해야 할 때, 당신의 집중력이 가장 높아지는 환경은 어떤 모습입니까?', 'options': ['완벽하게 조용한 개인 분석실', '동료들과 토론할 수 있는 회의실', '음악이 흐르는 편안한 공간', '정보가 계속 업데이트되는 상황실'], 'category': 'non-literature' },
@@ -208,3 +222,4 @@ def generate_detailed_report(score, total_questions, correct_answers, category_p
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
