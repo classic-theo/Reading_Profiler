@@ -5,52 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CSI 독서 프로파일러</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; }
         .font-orbitron { font-family: 'Orbitron', sans-serif; }
         .card { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.1); }
         .btn-primary { background: linear-gradient(145deg, #0e7490, #164e63); color: white; box-shadow: 0 4px 15px rgba(14, 116, 144, 0.3); transition: all 0.3s ease; }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 116, 144, 0.4); }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 116, 144, 0.4); }
         .btn-primary:disabled { background: #4b5563; cursor: not-allowed; transform: translateY(0); box-shadow: none; }
         .fade-in { animation: fadeIn 0.7s ease-in-out forwards; }
+        .fade-out { animation: fadeOut 0.5s ease-in-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
         .progress-bar-fill { background: linear-gradient(90deg, #0891b2, #22d3ee); }
         .glowing-border { box-shadow: 0 0 5px rgba(34, 211, 238, 0.5), 0 0 10px rgba(34, 211, 238, 0.3); }
         .option-label { transition: all 0.2s ease-in-out; }
         .peer:checked + .option-label { background-color: rgba(8, 145, 178, 0.3); border-color: #06b6d4; transform: scale(1.02); }
-        /* 서술형 답변창 스타일 */
-        .essay-textarea {
-            width: 100%;
-            min-height: 150px;
-            background-color: rgba(17, 24, 39, 0.8);
-            border: 1px solid #4b5563;
-            border-radius: 0.5rem;
-            color: #f9fafb;
-            padding: 0.75rem;
-            resize: vertical;
-            transition: border-color 0.3s;
-        }
-        .essay-textarea:focus {
-            outline: none;
-            border-color: #06b6d4;
-        }
-        .char-counter {
-            text-align: right;
-            color: #9ca3af;
-            font-size: 0.9em;
-            margin-top: 0.5rem;
-        }
+        .essay-textarea { width: 100%; min-height: 150px; background-color: rgba(17, 24, 39, 0.8); border: 1px solid #4b5563; border-radius: 0.5rem; color: #f9fafb; padding: 0.75rem; resize: vertical; transition: border-color 0.3s; }
+        .essay-textarea:focus { outline: none; border-color: #06b6d4; }
+        .char-counter { text-align: right; color: #9ca3af; font-size: 0.9em; margin-top: 0.5rem; }
     </style>
 </head>
 <body class="bg-gray-900 text-white bg-cover bg-fixed" style="background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');">
     <div class="absolute inset-0 bg-black/60"></div>
     <div id="app" class="relative min-h-screen flex items-center justify-center p-4">
 
-        <!-- Screen 1: User Info -->
-        <div id="user-info-screen" class="w-full max-w-md card rounded-2xl p-8 space-y-6 fade-in">
+        <!-- Screen 1: Access Code -->
+        <div id="login-screen" class="w-full max-w-md card rounded-2xl p-8 space-y-6 fade-in">
             <div class="text-center">
                 <h1 class="text-3xl font-orbitron text-cyan-400">CSI: Reading Profiler</h1>
+                <p class="text-gray-300 mt-2">사건 파일 접근을 위해 코드를 입력하십시오.</p>
+            </div>
+            <input id="access-code-input" type="text" placeholder="ACCESS CODE" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-center text-lg tracking-widest focus:ring-2 focus:ring-cyan-500 focus:outline-none glowing-border">
+            <button id="login-btn" class="w-full btn-primary font-bold py-3 rounded-lg">접근 허가 요청</button>
+            <p id="login-error" class="text-red-400 text-center h-4"></p>
+        </div>
+
+        <!-- Screen 2: User Info -->
+        <div id="user-info-screen" class="w-full max-w-md card rounded-2xl p-8 space-y-6 fade-in hidden">
+            <div class="text-center">
+                <h1 class="text-2xl font-bold text-cyan-400">프로파일러 정보 등록</h1>
                 <p class="text-gray-300 mt-2">정확한 분석을 위해 정보를 입력해주십시오.</p>
             </div>
             <input id="name-input" type="text" placeholder="이름 (Name)" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none">
@@ -58,7 +53,7 @@
             <button id="start-btn" class="w-full btn-primary font-bold py-3 rounded-lg">분석 시작</button>
         </div>
 
-        <!-- Screen 2: Test -->
+        <!-- Screen 3: Test -->
         <div id="test-screen" class="w-full max-w-4xl card rounded-2xl p-8 md:p-12 fade-in hidden">
             <div class="mb-8">
                 <div class="flex justify-between items-center mb-2 text-gray-300">
@@ -81,13 +76,13 @@
             </div>
         </div>
 
-        <!-- Screen 3: Result -->
+        <!-- Screen 4: Result -->
         <div id="result-screen" class="w-full max-w-4xl card rounded-2xl p-8 fade-in hidden">
             <div class="text-center mb-8">
                 <h1 class="text-4xl font-orbitron text-cyan-300">최종 분석 보고서</h1>
                 <p id="result-name" class="text-xl text-gray-200 mt-3"></p>
             </div>
-            <div id="result-summary" class="bg-black/20 p-6 rounded-lg border border-gray-700 text-gray-200 leading-relaxed whitespace-pre-wrap"></div>
+            <div id="result-summary" class="prose text-gray-300 max-w-none card p-6 rounded-xl bg-black/20 border border-gray-700"></div>
              <div class="mt-8 text-center">
                 <button id="restart-btn" class="btn-primary font-bold py-3 px-10 rounded-lg">새로운 사건 분석</button>
             </div>
@@ -95,55 +90,114 @@
     </div>
 
     <script>
-        // --- Mock 데이터 (원래는 서버에서 받아옴) ---
-        const questions = [
-            { id: 'q1', type: 'multiple_choice', title: '[사건 파일 No.301] - 선호하는 정보 유형', passage: '새로운 사건 정보를 접할 때, 당신의 본능은 어떤 자료로 가장 먼저 향합니까? 사건의 전체적인 그림을 보는 것을 선호하나요, 아니면 핵심 인물이나 구체적인 증거에 집중하는 편인가요?', options: ['사건 개요 및 요약 보고서', '관련 인물들의 상세 프로필', '사건 현장 사진 및 증거물 목록', '과거 유사 사건 기록'] },
-            { id: 'q2', type: 'multiple_choice', title: '[사건 파일 No.302] - 분석 환경', passage: '복잡하고 민감한 사건을 분석해야 할 때, 당신의 집중력이 가장 높아지는 환경은 어떤 모습입니까?', options: ['완벽하게 조용한 개인 분석실', '동료들과 토론할 수 있는 회의실', '음악이 흐르는 편안한 공간', '정보가 계속 업데이트되는 상황실'] },
-            { id: 'q3', type: 'essay', title: '[사건 파일 No.303] - 당신의 분석 방식', passage: '당신에게 풀리지 않는 미제 사건 파일이 주어졌습니다. 어떤 방식으로 접근하여 해결의 실마리를 찾아나갈 것인지 구체적으로 서술하시오.', minChars: 100 },
-            { id: 'q4', type: 'multiple_choice', title: '[사건 파일 No.304] - 결정적 증거', passage: '네 가지의 결정적인 증거가 눈앞에 있습니다. 당신의 직관과 논리가 가리키는 가장 신뢰도 높은 증거는 무엇입니까?', options: ['범인의 자백 영상', '범행 도구에서 발견된 지문', '피해자의 다잉 메시지', '신뢰할 수 있는 목격자의 증언'] },
-            { id: 'q5', type: 'essay', title: '[사건 파일 No.305] - 미래 여행', passage: '당신은 100년 뒤 미래로 시간 여행을 떠날 수 있는 티켓 한 장을 얻었습니다. 프로파일러로서, 미래 사회의 어떤 점을 가장 먼저 확인하여 현재의 범죄 예방에 활용하시겠습니까? 그 이유와 함께 서술하시오.', minChars: 100 },
-            { id: 'q6', type: 'multiple_choice', title: '[사건 파일 No.306] - 용의자 심문', passage: '알리바이가 완벽한 용의자가 당신 앞에 앉아 있습니다. 그의 눈은 흔들림이 없지만, 당신의 프로파일러적 직감은 그를 가리키고 있습니다. 당신의 다음 행동은?', options: ['알리바이를 깨뜨릴 증거를 다시 찾는다.', '심리적 압박을 통해 자백을 유도한다.', '주변 인물을 탐문하여 관계를 파악한다.', '일단 수사선상에서 제외하고 다른 가능성을 찾는다.'] },
-            { id: 'q7', type: 'essay', title: '[사건 파일 No.307] - 정의에 대한 고찰', passage: '만약 법을 통해서는 정의를 구현할 수 없는 상황에 놓인다면, 당신은 어떤 선택을 할 것인지 당신의 가치관에 근거하여 서술하시오.', minChars: 100 }
-        ];
+        // --- DOM Elements ---
+        const screens = { login: document.getElementById('login-screen'), userInfo: document.getElementById('user-info-screen'), test: document.getElementById('test-screen'), result: document.getElementById('result-screen') };
+        const loginBtn = document.getElementById('login-btn'), startBtn = document.getElementById('start-btn'), nextBtn = document.getElementById('next-btn'), restartBtn = document.getElementById('restart-btn');
+        
+        // --- State ---
+        let state = { userInfo: {}, questions: [], currentQuestionIndex: 0, userAnswers: [] };
 
-        // --- DOM 요소 ---
-        const screens = { userInfo: document.getElementById('user-info-screen'), test: document.getElementById('test-screen'), result: document.getElementById('result-screen') };
-        const startBtn = document.getElementById('start-btn'), nextBtn = document.getElementById('next-btn'), restartBtn = document.getElementById('restart-btn');
-
-        // --- 상태 관리 ---
-        let state = { userInfo: {}, currentQuestionIndex: 0, userAnswers: [] };
-
-        // --- 화면 전환 함수 ---
+        // --- Functions ---
         function switchScreen(screenName) {
-            Object.values(screens).forEach(s => s.classList.add('hidden'));
-            if (screens[screenName]) {
-                screens[screenName].classList.remove('hidden');
+            const currentScreen = Object.values(screens).find(s => !s.classList.contains('hidden'));
+            if (currentScreen) {
+                currentScreen.classList.add('fade-out');
+                setTimeout(() => {
+                    currentScreen.classList.add('hidden');
+                    currentScreen.classList.remove('fade-out');
+                    if (screens[screenName]) { 
+                        screens[screenName].classList.remove('hidden');
+                        screens[screenName].classList.add('fade-in'); 
+                    }
+                }, 500);
+            } else {
+                if (screens[screenName]) { 
+                    screens[screenName].classList.remove('hidden');
+                    screens[screenName].classList.add('fade-in');
+                }
             }
         }
 
-        // --- 문제 렌더링 함수 ---
+        async function handleLogin() {
+            const codeInput = document.getElementById('access-code-input');
+            const errorEl = document.getElementById('login-error');
+            errorEl.textContent = '';
+            loginBtn.disabled = true;
+            loginBtn.textContent = '확인 중...';
+
+            try {
+                const response = await fetch('/validate-code', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'}, 
+                    body: JSON.stringify({ code: codeInput.value.toUpperCase() }) 
+                });
+                const data = await response.json();
+                if (data.success) {
+                    switchScreen('userInfo');
+                } else {
+                    errorEl.textContent = data.message || '접근에 실패했습니다.';
+                }
+            } catch (error) {
+                errorEl.textContent = '서버와 통신할 수 없습니다.';
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = '접근 허가 요청';
+            }
+        }
+
+        async function startTest() {
+            const name = document.getElementById('name-input').value.trim();
+            const age = document.getElementById('age-input').value.trim();
+            if (!name || !age) {
+                alert('이름과 나이를 모두 입력해주세요.');
+                return;
+            }
+            state.userInfo = { name, age };
+            
+            startBtn.disabled = true;
+            startBtn.textContent = '사건 파일 구성 중...';
+
+            try {
+                const response = await fetch('/get-test', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'}, 
+                    body: JSON.stringify({ age: state.userInfo.age }) 
+                });
+                state.questions = await response.json();
+                
+                state.currentQuestionIndex = 0;
+                state.userAnswers = [];
+                
+                switchScreen('test');
+                displayQuestion();
+            } catch (error) {
+                alert('시험지를 불러오는 데 실패했습니다.');
+            } finally {
+                startBtn.disabled = false;
+                startBtn.textContent = '분석 시작';
+            }
+        }
+        
         function displayQuestion() {
-            const question = questions[state.currentQuestionIndex];
+            const question = state.questions[state.currentQuestionIndex];
             const questionOptions = document.getElementById('question-options');
             
-            // UI 업데이트
-            document.getElementById('progress-text').textContent = `${state.currentQuestionIndex + 1} / ${questions.length}`;
-            document.getElementById('progress-bar').style.width = `${((state.currentQuestionIndex + 1) / questions.length) * 100}%`;
+            document.getElementById('progress-text').textContent = `${state.currentQuestionIndex + 1} / ${state.questions.length}`;
+            document.getElementById('progress-bar').style.width = `${((state.currentQuestionIndex + 1) / state.questions.length) * 100}%`;
             document.getElementById('question-title').textContent = question.title;
             document.getElementById('question-passage').innerHTML = question.passage ? question.passage.replace(/\n/g, '<br>') : '';
-            questionOptions.innerHTML = ''; // 이전 옵션 초기화
+            questionOptions.innerHTML = '';
 
-            // 문제 유형에 따라 옵션/입력창 생성
             if (question.type === 'multiple_choice') {
+                questionOptions.classList.add('grid', 'md:grid-cols-2', 'gap-4');
                 question.options.forEach((optionText, index) => {
                     const optionId = `q${state.currentQuestionIndex}_${index}`;
                     questionOptions.innerHTML += `
-                        <div class="md:col-span-1">
+                        <div>
                             <input type="radio" id="${optionId}" name="q${state.currentQuestionIndex}" value="${optionText}" class="hidden peer">
                             <label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50">${optionText}</label>
                         </div>`;
                 });
-                questionOptions.classList.add('grid', 'md:grid-cols-2', 'gap-4');
             } else if (question.type === 'essay') {
                 questionOptions.classList.remove('grid', 'md:grid-cols-2', 'gap-4');
                 questionOptions.innerHTML = `
@@ -152,27 +206,23 @@
                         <div id="char-counter" class="char-counter">0자</div>
                     </div>`;
                 
-                // 글자 수 카운터 이벤트 리스너 추가
                 document.getElementById('essay-answer').addEventListener('input', (e) => {
                     const currentLength = e.target.value.length;
-                    const counter = document.getElementById('char-counter');
-                    counter.textContent = `${currentLength}자`;
-                    counter.style.color = currentLength >= question.minChars ? '#34d399' : '#9ca3af';
+                    document.getElementById('char-counter').textContent = `${currentLength}자`;
                     updateNextButtonState();
                 });
             }
             updateNextButtonState();
         }
 
-        // --- 다음 버튼 상태 업데이트 ---
         function updateNextButtonState() {
-            const question = questions[state.currentQuestionIndex];
+            const question = state.questions[state.currentQuestionIndex];
             let isAnswered = false;
             if (question.type === 'multiple_choice') {
                 if (document.querySelector(`input[name="q${state.currentQuestionIndex}"]:checked`)) {
                     isAnswered = true;
                 }
-            } else { // essay
+            } else {
                 const text = document.getElementById('essay-answer').value;
                 if (text.length >= question.minChars) {
                     isAnswered = true;
@@ -181,68 +231,66 @@
             nextBtn.disabled = !isAnswered;
         }
 
-        // --- 다음 버튼 클릭 처리 ---
         function handleNext() {
-            const question = questions[state.currentQuestionIndex];
+            const question = state.questions[state.currentQuestionIndex];
             let answer;
             if (question.type === 'multiple_choice') {
                 answer = document.querySelector(`input[name="q${state.currentQuestionIndex}"]:checked`).value;
             } else {
                 answer = document.getElementById('essay-answer').value;
             }
-            state.userAnswers.push({ question: question.title, answer: answer });
+            state.userAnswers.push({ questionId: question.id, answer: answer });
 
             state.currentQuestionIndex++;
-            if (state.currentQuestionIndex < questions.length) {
+            if (state.currentQuestionIndex < state.questions.length) {
                 displayQuestion();
-                if (state.currentQuestionIndex === questions.length - 1) {
+                if (state.currentQuestionIndex === state.questions.length - 1) {
                     nextBtn.innerHTML = '결과 분석 요청 &rarr;';
                 }
             } else {
-                showResult();
+                submitAndShowResult();
             }
         }
         
-        // --- 결과 표시 ---
-        function showResult() {
-            switchScreen('result');
-            document.getElementById('result-name').textContent = `${state.userInfo.name} 프로파일러 최종 보고서`;
-            
-            let summary = '분석이 완료되었습니다. 아래는 제출하신 답변입니다.\n\n';
-            state.userAnswers.forEach((ans, index) => {
-                summary += `[${ans.question}]\n`;
-                summary += `답변: ${ans.answer}\n\n`;
-            });
-            document.getElementById('result-summary').textContent = summary;
+        async function submitAndShowResult() {
+            nextBtn.disabled = true;
+            nextBtn.textContent = '분석 중...';
+
+            try {
+                const response = await fetch('/submit-result', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ userInfo: state.userInfo, answers: state.userAnswers })
+                });
+                const resultData = await response.json();
+                if (resultData.success) {
+                    switchScreen('result');
+                    document.getElementById('result-name').textContent = `${state.userInfo.name} 프로파일러 최종 보고서`;
+                    // marked.js를 사용하여 마크다운을 HTML로 변환
+                    document.getElementById('result-summary').innerHTML = marked.parse(resultData.report.overall_comment);
+                } else {
+                    alert('결과를 분석하는 데 실패했습니다: ' + resultData.error);
+                }
+            } catch (error) {
+                alert('결과를 전송하는 데 실패했습니다.');
+            }
         }
 
-        // --- 이벤트 리스너 바인딩 ---
-        startBtn.addEventListener('click', () => {
-            const name = document.getElementById('name-input').value.trim();
-            const age = document.getElementById('age-input').value.trim();
-            if (!name || !age) {
-                alert('이름과 나이를 모두 입력해주세요.');
-                return;
-            }
-            state.userInfo = { name, age };
-            switchScreen('test');
-            displayQuestion();
-        });
-
+        // --- Event Listeners ---
+        loginBtn.addEventListener('click', handleLogin);
+        startBtn.addEventListener('click', startTest);
         nextBtn.addEventListener('click', handleNext);
         restartBtn.addEventListener('click', () => location.reload());
-
-        // 라디오 버튼 선택 시 다음 버튼 상태 업데이트
         document.getElementById('question-options').addEventListener('change', (e) => {
             if (e.target.type === 'radio') {
                 updateNextButtonState();
             }
         });
 
-        // --- 초기화 ---
-        switchScreen('userInfo');
+        // --- Initial Load ---
+        switchScreen('login');
         nextBtn.disabled = true;
-
     </script>
 </body>
 </html>
+
