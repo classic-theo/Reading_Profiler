@@ -2,28 +2,25 @@ import os
 import json
 import random
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request
 import firebase_admin
 from firebase_admin import credentials, firestore
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- 1. Flask 앱 초기화 ---
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 
-# --- 2. 외부 서비스 초기화 (단순화된 로직) ---
+# --- 2. 외부 서비스 초기화 ---
 
 # Firebase 초기화
 try:
-    # 1. Render에 설정된 환경 변수를 먼저 찾습니다.
     firebase_creds_json = os.environ.get('FIREBASE_CREDENTIALS_JSON')
     if firebase_creds_json:
-        # 1-1. 환경 변수가 있으면, 그 내용을 사용해 초기화합니다.
         cred_dict = json.loads(firebase_creds_json)
         cred = credentials.Certificate(cred_dict)
         print("Firebase 환경 변수에서 초기화 성공")
     else:
-        # 1-2. 환경 변수가 없으면, 로컬 파일을 사용해 초기화합니다. (로컬 개발용)
         print("Firebase 환경 변수를 찾지 못했습니다. 로컬 파일 'firebase_credentials.json'을 시도합니다.")
         cred = credentials.Certificate('firebase_credentials.json')
         print("Firebase 파일에서 초기화 성공")
@@ -36,23 +33,21 @@ except Exception as e:
 
 # Google Sheets 초기화
 try:
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    # 1. Render에 설정된 환경 변수를 먼저 찾습니다.
+    scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    
     google_creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS_JSON')
     if google_creds_json:
-        # 1-1. 환경 변수가 있으면, 그 내용을 사용해 초기화합니다.
         creds_dict = json.loads(google_creds_json)
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         print("Google Sheets 환경 변수에서 초기화 성공")
     else:
-        # 1-2. 환경 변수가 없으면, 로컬 파일을 사용해 초기화합니다. (로컬 개발용)
         print("Google Sheets 환경 변수를 찾지 못했습니다. 로컬 파일 'google_sheets_credentials.json'을 시도합니다.")
         creds = ServiceAccountCredentials.from_json_keyfile_name('google_sheets_credentials.json', scope)
         print("Google Sheets 파일에서 초기화 성공")
         
     client = gspread.authorize(creds)
-    # "CSI 독서 프로파일러 결과" 라는 이름의 구글 시트가 있어야 합니다.
     sheet = client.open("CSI 독서 프로파일러 결과").sheet1
+    print("Google Sheets 시트 열기 성공")
 except Exception as e:
     print(f"Google Sheets 초기화 실패: {e}")
     sheet = None
@@ -62,16 +57,24 @@ except Exception as e:
 @app.route('/')
 def serve_index():
     """
-    기본 접속 시 index.html 파일을 렌더링합니다.
+    기본 접속 주소('/')로 요청이 오면 index.html을 보여줍니다.
     """
-    return send_from_directory(app.root_path, 'index.html')
+    return render_template('index.html')
+
+# ✨ 해결책: /admin 주소에 대한 라우팅 규칙 추가
+@app.route('/admin')
+def serve_admin():
+    """
+    /admin 주소로 요청이 오면 admin.html을 보여줍니다.
+    """
+    return render_template('admin.html')
+
 
 @app.route('/get-test', methods=['POST'])
 def get_test():
     """
     테스트 문항을 반환합니다. (현재는 Mock 데이터 사용)
     """
-    # 실제 서비스에서는 DB에서 문제를 가져오는 로직으로 변경해야 합니다.
     mock_questions = [
         { 'id': 'q1', 'type': 'multiple_choice', 'title': '[사건 파일 No.301] - 선호하는 정보 유형', 'passage': '새로운 사건 정보를 접할 때, 당신의 본능은 어떤 자료로 가장 먼저 향합니까? 사건의 전체적인 그림을 보는 것을 선호하나요, 아니면 핵심 인물이나 구체적인 증거에 집중하는 편인가요?', 'options': ['사건 개요 및 요약 보고서', '관련 인물들의 상세 프로필', '사건 현장 사진 및 증거물 목록', '과거 유사 사건 기록'], 'category': 'non-literature' },
         { 'id': 'q2', 'type': 'multiple_choice', 'title': '[사건 파일 No.302] - 분석 환경', 'passage': '복잡하고 민감한 사건을 분석해야 할 때, 당신의 집중력이 가장 높아지는 환경은 어떤 모습입니까?', 'options': ['완벽하게 조용한 개인 분석실', '동료들과 토론할 수 있는 회의실', '음악이 흐르는 편안한 공간', '정보가 계속 업데이트되는 상황실'], 'category': 'non-literature' },
@@ -205,12 +208,3 @@ def generate_detailed_report(score, total_questions, correct_answers, category_p
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
-
-
-
-
-
-
-
-
-
