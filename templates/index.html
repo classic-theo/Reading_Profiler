@@ -5,61 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CSI 독서 프로파일러</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js 라이브러리 추가 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; }
         .font-orbitron { font-family: 'Orbitron', sans-serif; }
-        .card { background: rgba(17, 24, 39, 0.6); backdrop-filter: blur(12px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .card { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.1); }
         .btn-primary { background: linear-gradient(145deg, #0e7490, #164e63); color: white; box-shadow: 0 4px 15px rgba(14, 116, 144, 0.3); transition: all 0.3s ease; }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 116, 144, 0.4); }
-        .btn-secondary { background-color: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); transition: all 0.3s ease; }
-        .btn-secondary:hover { background-color: rgba(255, 255, 255, 0.2); }
+        .btn-primary:disabled { background: #4b5563; cursor: not-allowed; transform: translateY(0); box-shadow: none; }
         .fade-in { animation: fadeIn 0.7s ease-in-out forwards; }
-        .fade-out { animation: fadeOut 0.5s ease-in-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
         .progress-bar-fill { background: linear-gradient(90deg, #0891b2, #22d3ee); }
         .glowing-border { box-shadow: 0 0 5px rgba(34, 211, 238, 0.5), 0 0 10px rgba(34, 211, 238, 0.3); }
         .option-label { transition: all 0.2s ease-in-out; }
         .peer:checked + .option-label { background-color: rgba(8, 145, 178, 0.3); border-color: #06b6d4; transform: scale(1.02); }
-        .prose h3 { font-size: 1.25rem; color: #67e8f9; margin-top: 1.5rem; margin-bottom: 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #0e7490; }
-        .prose ul { list-style-type: none; padding-left: 0; }
-        .prose li { background-color: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.5rem; }
-        .prose strong { color: #f0f9ff; }
+        /* 서술형 답변창 스타일 */
+        .essay-textarea {
+            width: 100%;
+            min-height: 150px;
+            background-color: rgba(17, 24, 39, 0.8);
+            border: 1px solid #4b5563;
+            border-radius: 0.5rem;
+            color: #f9fafb;
+            padding: 0.75rem;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        .essay-textarea:focus {
+            outline: none;
+            border-color: #06b6d4;
+        }
+        .char-counter {
+            text-align: right;
+            color: #9ca3af;
+            font-size: 0.9em;
+            margin-top: 0.5rem;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white bg-cover bg-fixed" style="background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');">
     <div class="absolute inset-0 bg-black/60"></div>
     <div id="app" class="relative min-h-screen flex items-center justify-center p-4">
 
-        <!-- Screen 1: Access Code -->
-        <div id="login-screen" class="w-full max-w-md card rounded-2xl p-8 space-y-6 fade-in">
+        <!-- Screen 1: User Info -->
+        <div id="user-info-screen" class="w-full max-w-md card rounded-2xl p-8 space-y-6 fade-in">
             <div class="text-center">
                 <h1 class="text-3xl font-orbitron text-cyan-400">CSI: Reading Profiler</h1>
-                <p class="text-gray-300 mt-2">사건 파일 접근을 위해 코드를 입력하십시오.</p>
-            </div>
-            <input id="access-code-input" type="text" placeholder="ACCESS CODE" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-center text-lg tracking-widest focus:ring-2 focus:ring-cyan-500 focus:outline-none glowing-border">
-            <button id="login-btn" class="w-full btn-primary font-bold py-3 rounded-lg">접근 허가 요청</button>
-            <p id="login-error" class="text-red-400 text-center h-4"></p>
-        </div>
-
-        <!-- Screen 2: User Info -->
-        <div id="user-info-screen" class="w-full max-w-md card rounded-2xl p-8 space-y-6 fade-in hidden">
-            <div class="text-center">
-                <h1 class="text-2xl font-bold text-cyan-400">프로파일러 정보 등록</h1>
                 <p class="text-gray-300 mt-2">정확한 분석을 위해 정보를 입력해주십시오.</p>
             </div>
             <input id="name-input" type="text" placeholder="이름 (Name)" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none">
             <input id="age-input" type="number" placeholder="나이 (Age)" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none">
-            <input id="phone-input" type="tel" placeholder="핸드폰 번호 (Phone Number)" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none">
             <button id="start-btn" class="w-full btn-primary font-bold py-3 rounded-lg">분석 시작</button>
         </div>
 
-        <!-- Screen 3: Test -->
+        <!-- Screen 2: Test -->
         <div id="test-screen" class="w-full max-w-4xl card rounded-2xl p-8 md:p-12 fade-in hidden">
             <div class="mb-8">
                 <div class="flex justify-between items-center mb-2 text-gray-300">
@@ -74,328 +73,176 @@
                 <div class="bg-black/20 p-6 rounded-lg border border-gray-700">
                     <h2 id="question-title" class="text-2xl font-bold text-cyan-300 mb-4"></h2>
                     <div id="question-passage" class="text-gray-200 mb-6 leading-relaxed max-h-60 overflow-y-auto pr-3 border-l-2 border-cyan-700 pl-4"></div>
-                    <div id="ordering-items-container" class="space-y-3 mb-4"></div>
                 </div>
-                <div id="question-options" class="grid md:grid-cols-2 gap-4 mt-6"></div>
+                <div id="question-options" class="mt-6"></div>
             </div>
             <div class="mt-10 text-right">
                 <button id="next-btn" class="btn-primary font-bold py-3 px-10 rounded-lg text-lg">다음 단서 &rarr;</button>
             </div>
         </div>
 
-        <!-- Screen 4: Result -->
-        <div id="result-screen" class="w-full max-w-5xl card rounded-2xl p-8 fade-in hidden">
-            <div id="result-capture-area" class="bg-gray-900/50 p-6 rounded-xl">
-                <div class="text-center mb-8">
-                    <h1 class="text-4xl font-orbitron text-cyan-300">최종 분석 보고서</h1>
-                    <p id="result-name" class="text-xl text-gray-200 mt-3"></p>
-                </div>
-                
-                <div id="improvement-message" class="bg-teal-900/50 border-2 border-teal-600 text-teal-200 p-5 rounded-lg mb-8 text-center leading-relaxed hidden text-lg"></div>
-
-                <div class="grid lg:grid-cols-5 gap-8">
-                    <!-- 왼쪽: 능력치 분석 (그래프로 변경) -->
-                    <div class="lg:col-span-2">
-                        <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">능력치 분석</h2>
-                        <div class="w-full h-64 md:h-80">
-                            <canvas id="skillChart"></canvas>
-                        </div>
-                    </div>
-                    <!-- 오른쪽: 독서 성향 및 속도 분석 -->
-                    <div class="lg:col-span-3">
-                        <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">독서 성향 및 속도</h2>
-                        <div class="card p-4 rounded-xl space-y-4">
-                            <div>
-                                <h3 class="font-bold text-lg text-gray-300">독서 편향성 진단</h3>
-                                <div id="genre-analysis-result" class="text-sm text-gray-400 mt-2"></div>
-                            </div>
-                            <div class="pt-4 border-t border-gray-700">
-                                <h3 class="font-bold text-lg text-gray-300">인지 민첩성 분석</h3>
-                                <div id="time-analysis-result" class="text-sm text-gray-400 mt-2"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 하단: 코칭 가이드 -->
-                <div class="mt-8">
-                     <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">코칭 가이드</h2>
-                     <div id="coaching-guide" class="prose text-gray-300 max-w-none card p-6 rounded-xl"></div>
-                </div>
-
-                <!-- 테스트 설계 기반 (하이라이트 처리) -->
-                <div id="theoretical-basis" class="mt-10 pt-6 border-t border-gray-700 text-center">
-                </div>
+        <!-- Screen 3: Result -->
+        <div id="result-screen" class="w-full max-w-4xl card rounded-2xl p-8 fade-in hidden">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-orbitron text-cyan-300">최종 분석 보고서</h1>
+                <p id="result-name" class="text-xl text-gray-200 mt-3"></p>
             </div>
-            <div class="mt-8 flex flex-col md:flex-row gap-4">
-                <button id="share-link-btn" class="w-full btn-secondary font-bold py-3 rounded-lg">결과 링크 복사</button>
-                <button id="share-image-btn" class="w-full btn-secondary font-bold py-3 rounded-lg">이미지로 저장</button>
-                <button id="restart-btn" class="w-full btn-primary font-bold py-3 rounded-lg">새로운 사건 분석</button>
+            <div id="result-summary" class="bg-black/20 p-6 rounded-lg border border-gray-700 text-gray-200 leading-relaxed whitespace-pre-wrap"></div>
+             <div class="mt-8 text-center">
+                <button id="restart-btn" class="btn-primary font-bold py-3 px-10 rounded-lg">새로운 사건 분석</button>
             </div>
-            <p id="share-status" class="text-green-400 text-center h-4 mt-4"></p>
         </div>
     </div>
 
     <script>
-    // --- DOM Elements ---
-    const screens = { login: document.getElementById('login-screen'), userInfo: document.getElementById('user-info-screen'), test: document.getElementById('test-screen'), result: document.getElementById('result-screen') };
-    const loginBtn = document.getElementById('login-btn'), startBtn = document.getElementById('start-btn'), nextBtn = document.getElementById('next-btn'), restartBtn = document.getElementById('restart-btn');
-    const shareLinkBtn = document.getElementById('share-link-btn'), shareImageBtn = document.getElementById('share-image-btn');
-    const questionContainer = document.getElementById('question-container');
-    
-    // --- State ---
-    let userInfo = {}, questions = [], currentQuestionIndex = 0, userAnswers = [];
-    let solvingTimes = [];
-    let questionStartTime;
-    let skillChartInstance = null; // 차트 인스턴스를 저장할 변수
+        // --- Mock 데이터 (원래는 서버에서 받아옴) ---
+        const questions = [
+            { id: 'q1', type: 'multiple_choice', title: '[사건 파일 No.301] - 선호하는 정보 유형', passage: '새로운 사건 정보를 접할 때, 당신의 본능은 어떤 자료로 가장 먼저 향합니까? 사건의 전체적인 그림을 보는 것을 선호하나요, 아니면 핵심 인물이나 구체적인 증거에 집중하는 편인가요?', options: ['사건 개요 및 요약 보고서', '관련 인물들의 상세 프로필', '사건 현장 사진 및 증거물 목록', '과거 유사 사건 기록'] },
+            { id: 'q2', type: 'multiple_choice', title: '[사건 파일 No.302] - 분석 환경', passage: '복잡하고 민감한 사건을 분석해야 할 때, 당신의 집중력이 가장 높아지는 환경은 어떤 모습입니까?', options: ['완벽하게 조용한 개인 분석실', '동료들과 토론할 수 있는 회의실', '음악이 흐르는 편안한 공간', '정보가 계속 업데이트되는 상황실'] },
+            { id: 'q3', type: 'essay', title: '[사건 파일 No.303] - 당신의 분석 방식', passage: '당신에게 풀리지 않는 미제 사건 파일이 주어졌습니다. 어떤 방식으로 접근하여 해결의 실마리를 찾아나갈 것인지 구체적으로 서술하시오.', minChars: 100 },
+            { id: 'q4', type: 'multiple_choice', title: '[사건 파일 No.304] - 결정적 증거', passage: '네 가지의 결정적인 증거가 눈앞에 있습니다. 당신의 직관과 논리가 가리키는 가장 신뢰도 높은 증거는 무엇입니까?', options: ['범인의 자백 영상', '범행 도구에서 발견된 지문', '피해자의 다잉 메시지', '신뢰할 수 있는 목격자의 증언'] },
+            { id: 'q5', type: 'essay', title: '[사건 파일 No.305] - 미래 여행', passage: '당신은 100년 뒤 미래로 시간 여행을 떠날 수 있는 티켓 한 장을 얻었습니다. 프로파일러로서, 미래 사회의 어떤 점을 가장 먼저 확인하여 현재의 범죄 예방에 활용하시겠습니까? 그 이유와 함께 서술하시오.', minChars: 100 },
+            { id: 'q6', type: 'multiple_choice', title: '[사건 파일 No.306] - 용의자 심문', passage: '알리바이가 완벽한 용의자가 당신 앞에 앉아 있습니다. 그의 눈은 흔들림이 없지만, 당신의 프로파일러적 직감은 그를 가리키고 있습니다. 당신의 다음 행동은?', options: ['알리바이를 깨뜨릴 증거를 다시 찾는다.', '심리적 압박을 통해 자백을 유도한다.', '주변 인물을 탐문하여 관계를 파악한다.', '일단 수사선상에서 제외하고 다른 가능성을 찾는다.'] },
+            { id: 'q7', type: 'essay', title: '[사건 파일 No.307] - 정의에 대한 고찰', passage: '만약 법을 통해서는 정의를 구현할 수 없는 상황에 놓인다면, 당신은 어떤 선택을 할 것인지 당신의 가치관에 근거하여 서술하시오.', minChars: 100 }
+        ];
 
-    // --- Functions ---
-    function switchScreen(screenName) {
-        const currentScreen = Object.values(screens).find(s => !s.classList.contains('hidden'));
-        if (currentScreen) {
-            currentScreen.classList.add('fade-out');
-            setTimeout(() => {
-                currentScreen.classList.add('hidden'); currentScreen.classList.remove('fade-out');
-                if (screens[screenName]) { screens[screenName].classList.remove('hidden'); screens[screenName].classList.add('fade-in'); }
-            }, 500);
-        } else {
-             if (screens[screenName]) { screens[screenName].classList.remove('hidden'); screens[screenName].classList.add('fade-in'); }
+        // --- DOM 요소 ---
+        const screens = { userInfo: document.getElementById('user-info-screen'), test: document.getElementById('test-screen'), result: document.getElementById('result-screen') };
+        const startBtn = document.getElementById('start-btn'), nextBtn = document.getElementById('next-btn'), restartBtn = document.getElementById('restart-btn');
+
+        // --- 상태 관리 ---
+        let state = { userInfo: {}, currentQuestionIndex: 0, userAnswers: [] };
+
+        // --- 화면 전환 함수 ---
+        function switchScreen(screenName) {
+            Object.values(screens).forEach(s => s.classList.add('hidden'));
+            if (screens[screenName]) {
+                screens[screenName].classList.remove('hidden');
+            }
         }
-    }
 
-    async function handleLogin() {
-        const codeInput = document.getElementById('access-code-input'), errorEl = document.getElementById('login-error');
-        errorEl.textContent = '';
-        const response = await fetch('/validate-code', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code: codeInput.value.toUpperCase() }) });
-        const data = await response.json();
-        if (data.success) switchScreen('userInfo');
-        else errorEl.textContent = data.message || '접근에 실패했습니다.';
-    }
-
-    async function startTest() {
-        const name = document.getElementById('name-input').value.trim();
-        const age = document.getElementById('age-input').value.trim();
-        const phone = document.getElementById('phone-input').value.trim();
-        if (!name || !age || !phone) { alert('이름, 나이, 핸드폰 번호를 모두 입력해주세요.'); return; }
-        userInfo = { name, age, phone, date: new Date().toLocaleDateString() };
-        
-        document.getElementById('start-btn').textContent = '시험지 구성 중...';
-        document.getElementById('start-btn').disabled = true;
-
-        const response = await fetch('/get-test', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ age: userInfo.age }) });
-        questions = await response.json();
-        
-        currentQuestionIndex = 0;
-        userAnswers = new Array(questions.length).fill(null);
-        solvingTimes = [];
-        
-        document.getElementById('start-btn').textContent = '분석 시작';
-        document.getElementById('start-btn').disabled = false;
-
-        switchScreen('test');
-        displayQuestion();
-    }
-    
-    function displayQuestion() {
-        questionStartTime = new Date();
-        questionContainer.style.opacity = 0;
-        setTimeout(() => {
-            const question = questions[currentQuestionIndex];
-            document.getElementById('progress-text').textContent = `${currentQuestionIndex + 1} / ${questions.length}`;
-            document.getElementById('progress-bar').style.width = `${((currentQuestionIndex + 1) / questions.length) * 100}%`;
-            document.getElementById('question-title').textContent = `[사건 파일 No.${question.id}] - ${question.question}`;
-            
-            const passageEl = document.getElementById('question-passage');
-            passageEl.innerHTML = question.passage ? question.passage.replace(/\n/g, '<br>') : '';
-            passageEl.style.display = question.passage ? 'block' : 'none';
-
-            const orderingItemsContainer = document.getElementById('ordering-items-container');
+        // --- 문제 렌더링 함수 ---
+        function displayQuestion() {
+            const question = questions[state.currentQuestionIndex];
             const questionOptions = document.getElementById('question-options');
-            orderingItemsContainer.innerHTML = '';
-            questionOptions.innerHTML = '';
+            
+            // UI 업데이트
+            document.getElementById('progress-text').textContent = `${state.currentQuestionIndex + 1} / ${questions.length}`;
+            document.getElementById('progress-bar').style.width = `${((state.currentQuestionIndex + 1) / questions.length) * 100}%`;
+            document.getElementById('question-title').textContent = question.title;
+            document.getElementById('question-passage').innerHTML = question.passage ? question.passage.replace(/\n/g, '<br>') : '';
+            questionOptions.innerHTML = ''; // 이전 옵션 초기화
 
-            if (question.skill === 'sentence_ordering' || question.skill === 'paragraph_ordering') {
-                const items = question.sentences || question.paragraphs;
-                items.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'bg-black/20 p-3 rounded-md border border-gray-600';
-                    div.textContent = item;
-                    orderingItemsContainer.appendChild(div);
+            // 문제 유형에 따라 옵션/입력창 생성
+            if (question.type === 'multiple_choice') {
+                question.options.forEach((optionText, index) => {
+                    const optionId = `q${state.currentQuestionIndex}_${index}`;
+                    questionOptions.innerHTML += `
+                        <div class="md:col-span-1">
+                            <input type="radio" id="${optionId}" name="q${state.currentQuestionIndex}" value="${optionText}" class="hidden peer">
+                            <label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50">${optionText}</label>
+                        </div>`;
+                });
+                questionOptions.classList.add('grid', 'md:grid-cols-2', 'gap-4');
+            } else if (question.type === 'essay') {
+                questionOptions.classList.remove('grid', 'md:grid-cols-2', 'gap-4');
+                questionOptions.innerHTML = `
+                    <div>
+                        <textarea id="essay-answer" class="essay-textarea" placeholder="자유롭게 생각을 서술하시오..."></textarea>
+                        <div id="char-counter" class="char-counter">0자</div>
+                    </div>`;
+                
+                // 글자 수 카운터 이벤트 리스너 추가
+                document.getElementById('essay-answer').addEventListener('input', (e) => {
+                    const currentLength = e.target.value.length;
+                    const counter = document.getElementById('char-counter');
+                    counter.textContent = `${currentLength}자`;
+                    counter.style.color = currentLength >= question.minChars ? '#34d399' : '#9ca3af';
+                    updateNextButtonState();
                 });
             }
-
-            if (question.type === 'text_input') {
-                questionOptions.innerHTML = `<div class="md:col-span-2"><textarea id="text-answer-input" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none" rows="4" placeholder="자유롭게 생각을 서술하시오..."></textarea></div>`;
-            } else if (question.options && question.options.length > 0) {
-                question.options.forEach(option => {
-                    const optionText = typeof option === 'object' ? option.text : option;
-                    const optionId = `q${currentQuestionIndex}_${optionText.replace(/\s/g, '')}`;
-                    questionOptions.innerHTML += `<div><input type="radio" id="${optionId}" name="q${currentQuestionIndex}" value="${optionText}" class="hidden peer"><label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50">${optionText}</label></div>`;
-                });
-            }
-            questionContainer.style.opacity = 1;
-        }, 300);
-    }
-
-    function handleNext() {
-        const elapsedTime = Math.round((new Date() - questionStartTime) / 1000);
-        solvingTimes.push(elapsedTime);
-
-        const question = questions[currentQuestionIndex];
-        let answer = '';
-        if (question.type === 'text_input') {
-            answer = document.getElementById('text-answer-input').value.trim();
-            if (answer.length === 0) { alert('답변을 입력해주십시오.'); return; }
-        } else {
-            const selectedOption = document.querySelector(`input[name="q${currentQuestionIndex}"]:checked`);
-            if (!selectedOption) { alert('단서를 선택해주십시오.'); return; }
-            answer = selectedOption.value;
+            updateNextButtonState();
         }
-        userAnswers[currentQuestionIndex] = answer;
+
+        // --- 다음 버튼 상태 업데이트 ---
+        function updateNextButtonState() {
+            const question = questions[state.currentQuestionIndex];
+            let isAnswered = false;
+            if (question.type === 'multiple_choice') {
+                if (document.querySelector(`input[name="q${state.currentQuestionIndex}"]:checked`)) {
+                    isAnswered = true;
+                }
+            } else { // essay
+                const text = document.getElementById('essay-answer').value;
+                if (text.length >= question.minChars) {
+                    isAnswered = true;
+                }
+            }
+            nextBtn.disabled = !isAnswered;
+        }
+
+        // --- 다음 버튼 클릭 처리 ---
+        function handleNext() {
+            const question = questions[state.currentQuestionIndex];
+            let answer;
+            if (question.type === 'multiple_choice') {
+                answer = document.querySelector(`input[name="q${state.currentQuestionIndex}"]:checked`).value;
+            } else {
+                answer = document.getElementById('essay-answer').value;
+            }
+            state.userAnswers.push({ question: question.title, answer: answer });
+
+            state.currentQuestionIndex++;
+            if (state.currentQuestionIndex < questions.length) {
+                displayQuestion();
+                if (state.currentQuestionIndex === questions.length - 1) {
+                    nextBtn.innerHTML = '결과 분석 요청 &rarr;';
+                }
+            } else {
+                showResult();
+            }
+        }
         
-        currentQuestionIndex++;
-        if (currentQuestionIndex < questions.length) {
+        // --- 결과 표시 ---
+        function showResult() {
+            switchScreen('result');
+            document.getElementById('result-name').textContent = `${state.userInfo.name} 프로파일러 최종 보고서`;
+            
+            let summary = '분석이 완료되었습니다. 아래는 제출하신 답변입니다.\n\n';
+            state.userAnswers.forEach((ans, index) => {
+                summary += `[${ans.question}]\n`;
+                summary += `답변: ${ans.answer}\n\n`;
+            });
+            document.getElementById('result-summary').textContent = summary;
+        }
+
+        // --- 이벤트 리스너 바인딩 ---
+        startBtn.addEventListener('click', () => {
+            const name = document.getElementById('name-input').value.trim();
+            const age = document.getElementById('age-input').value.trim();
+            if (!name || !age) {
+                alert('이름과 나이를 모두 입력해주세요.');
+                return;
+            }
+            state.userInfo = { name, age };
+            switchScreen('test');
             displayQuestion();
-        } else {
-            submitAndShowResult();
-        }
-    }
+        });
 
-    async function submitAndShowResult() {
-        switchScreen('result');
-        document.getElementById('skillChart').style.display = 'none'; // 차트 숨기기
-        
-        const payload = { userInfo, answers: userAnswers, solvingTimes: solvingTimes, questions: questions };
+        nextBtn.addEventListener('click', handleNext);
+        restartBtn.addEventListener('click', () => location.reload());
 
-        const response = await fetch('/submit-result', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-        const data = await response.json();
-        if (data.success) {
-            document.getElementById('skillChart').style.display = 'block'; // 차트 보이기
-            displayResult(data);
-        } else {
-            // 에러 처리 UI 필요
-        }
-    }
-
-    function displayResult(data) {
-        document.getElementById('result-name').textContent = `${userInfo.name} 프로파일러 최종 보고서`;
-        
-        const improvementEl = document.getElementById('improvement-message');
-        if (data.improvement_message) {
-            improvementEl.innerHTML = data.improvement_message;
-            improvementEl.classList.remove('hidden');
-        } else {
-            improvementEl.classList.add('hidden');
-        }
-
-        const coachingEl = document.getElementById('coaching-guide');
-        if(data.coaching_guide) {
-            coachingEl.innerHTML = marked.parse(data.coaching_guide);
-        }
-        
-        const basisContainer = document.getElementById('theoretical-basis');
-        if (data.theoretical_basis) {
-            basisContainer.innerHTML = `<div class="bg-gray-700/50 p-4 rounded-lg"><p class="font-bold mb-2 text-lg text-cyan-300">테스트 설계 기반</p><p class="text-gray-300">${data.theoretical_basis}</p></div>`;
-        }
-
-        const skillMap = { comprehension: '정보 이해력', logic: '논리 분석력', inference: '단서 추론력', critical_thinking: '비판적 사고력', sentence_ordering: '문장 배열력', paragraph_ordering: '문단 배열력', title: '제목 생성력', theme: '주제 파악력', creativity: '창의적 서술력', vocabulary: '어휘력' };
-        
-        const labels = [];
-        const scores = [];
-        for (const [skill, score] of Object.entries(data.analysis)) {
-            if(typeof score === 'number' && skillMap[skill]) {
-                 labels.push(skillMap[skill]);
-                 scores.push(score);
-            }
-        }
-        
-        const isAllZero = scores.every(score => score === 0);
-
-        const chartCanvas = document.getElementById('skillChart').getContext('2d');
-        if (skillChartInstance) {
-            skillChartInstance.destroy();
-        }
-        skillChartInstance = new Chart(chartCanvas, {
-            type: 'radar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: '능력치 점수',
-                    data: scores,
-                    backgroundColor: 'rgba(34, 211, 238, 0.2)',
-                    borderColor: 'rgba(34, 211, 238, 1)',
-                    borderWidth: 2,
-                    pointBackgroundColor: 'rgba(34, 211, 238, 1)'
-                }]
-            },
-            options: {
-                maintainAspectRatio: false,
-                scales: {
-                    r: {
-                        angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
-                        grid: { color: 'rgba(255, 255, 255, 0.2)' },
-                        pointLabels: { color: '#e5e7eb', font: { size: 12 } },
-                        ticks: {
-                            color: '#9ca3af',
-                            backdropColor: 'rgba(0,0,0,0)',
-                            stepSize: 20,
-                            callback: function(value, index, values) {
-                                if (isAllZero && value !== 0) return '';
-                                return value;
-                            }
-                        },
-                        min: 0,
-                        max: 100
-                    }
-                },
-                plugins: { legend: { display: false } }
+        // 라디오 버튼 선택 시 다음 버튼 상태 업데이트
+        document.getElementById('question-options').addEventListener('change', (e) => {
+            if (e.target.type === 'radio') {
+                updateNextButtonState();
             }
         });
-        
-        const genreContainer = document.getElementById('genre-analysis-result');
-        genreContainer.innerHTML = '';
-        if(data.analysis.genre_bias) {
-            let biasText = '출제된 장르별 정답률: ';
-            const biasArray = [];
-            for (const [genre, score] of Object.entries(data.analysis.genre_bias)) {
-                biasArray.push(`<span class="capitalize">${genre}</span> ${score}점`);
-            }
-            genreContainer.innerHTML = `<p>${biasArray.join(', ')}</p><p class="mt-2 text-cyan-300">코칭 제안: 상대적으로 정답률이 낮은 장르의 글을 꾸준히 접하며 배경지식을 넓히는 것을 추천합니다.</p>`;
-        }
 
-        const timeContainer = document.getElementById('time-analysis-result');
-        timeContainer.innerHTML = '';
-        if(data.analysis.time_analysis) {
-            const timeInfo = data.analysis.time_analysis;
-            timeContainer.innerHTML = `<p>총 해결 시간: ${Math.round(timeInfo.total_time)}초 (기대 시간 대비 ${timeInfo.time_vs_expected}%)</p><p class="mt-2 text-cyan-300">${timeInfo.agility_comment}</p>`;
-        }
-    }
+        // --- 초기화 ---
+        switchScreen('userInfo');
+        nextBtn.disabled = true;
 
-    // --- Event Listeners ---
-    loginBtn.addEventListener('click', handleLogin);
-    startBtn.addEventListener('click', startTest);
-    nextBtn.addEventListener('click', handleNext);
-    restartBtn.addEventListener('click', () => location.reload());
-    
-    shareLinkBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(window.location.href).then(() => {
-            document.getElementById('share-status').textContent = '결과 페이지 링크가 복사되었습니다.';
-            setTimeout(() => document.getElementById('share-status').textContent = '', 2000);
-        });
-    });
-
-    shareImageBtn.addEventListener('click', () => {
-        const captureArea = document.getElementById('result-capture-area');
-        html2canvas(captureArea, { backgroundColor: '#111827', useCORS: true }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = `${userInfo.name}_독서프로파일러_결과.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        });
-    });
-
-    // --- Initial Load ---
-    switchScreen('login');
     </script>
 </body>
 </html>
