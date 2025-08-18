@@ -84,7 +84,8 @@ def generate_question_from_ai():
     """
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key={GEMINI_API_KEY}"
+        # ✨ 해결책: 무료 사용량 한도가 넉넉한 최신 경량 모델(gemini-1.5-flash-latest)로 변경
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         headers = {'Content-Type': 'application/json'}
         
@@ -103,10 +104,9 @@ def generate_question_from_ai():
         
         api_response = response.json()
 
-        # ✨ 해결책 1: API 응답 구조를 안전하게 확인
         if 'candidates' not in api_response or not api_response['candidates']:
             print(f"Gemini API 응답 형식 오류: {api_response}")
-            error_message = api_response.get('error', {}).get('message', "AI로부터 유효한 응답을 받지 못했습니다. (CANDIDATES_MISSING)")
+            error_message = api_response.get('error', {}).get('message', "AI로부터 유효한 응답을 받지 못했습니다.")
             raise ValueError(f"API 응답 오류: {error_message}")
 
         result_text = api_response['candidates'][0]['content']['parts'][0]['text']
@@ -189,9 +189,3 @@ def submit_result():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
-
-
-
-
-
-
