@@ -2,12 +2,13 @@ import os
 import json
 import random
 import string
+import time # ✨ '똑똑한 재시도' 기능을 위해 time 라이브러리 추가
 from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, request
 import firebase_admin
 from firebase_admin import credentials, firestore
 import gspread
-import requests # Gemini API 호출을 위해 requests 라이브러리 추가
+import requests 
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
@@ -15,7 +16,7 @@ app = Flask(__name__, template_folder='templates')
 # --- 2. 외부 서비스 초기화 ---
 db = None
 sheet = None
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') # Render ac환경 변수에서 Gemini API 키 불러오기
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # Firebase 초기화
 try:
@@ -68,35 +69,38 @@ def generate_question_from_ai():
     
     prompt = f"""
     독서력 평가 문제 출제 전문가로서, 다음 조건에 맞는 객관식 문제를 생성해줘.
-
-    1.  **대상 연령:** {age}세
-    2.  **측정 능력:** {category} (comprehension, logic, inference, creativity, critical_thinking 중 하나)
-    3.  **지문 (passage):** 측정 능력에 맞는 2~3문단 길이의 흥미로운 지문을 직접 창작해줘.
-    4.  **문제 (title):** 지문의 내용을 바탕으로 한 객관식 질문을 만들어줘. (예: [사건 파일 No.XXX] - {category})
-    5.  **선택지 (options):** 4개의 선택지를 배열(array) 형태로 만들어줘. 그 중 하나는 명확한 정답이어야 해.
-    6.  **정답 (answer):** 4개의 선택지 중 정답에 해당하는 문장을 정확히 적어줘.
-
-    **출력 형식은 반드시 아래의 JSON 스키마를 따라야 해:**
+    1.  대상 연령: {age}세
+    2.  측정 능력: {category}
+    3.  지문 (passage): 측정 능력에 맞는 2~3문단 길이의 흥미로운 지문을 직접 창작.
+    4.  문제 (title): 지문의 내용을 바탕으로 한 객관식 질문. (예: [사건 파일 No.XXX] - {category})
+    5.  선택지 (options): 4개의 선택지를 배열(array) 형태로, 그 중 하나는 명확한 정답.
+    6.  정답 (answer): 4개의 선택지 중 정답에 해당하는 문장.
+    출력 형식은 반드시 아래의 JSON 스키마를 따라야 해:
     {{
-      "title": "string",
-      "passage": "string",
-      "type": "multiple_choice",
-      "options": ["string", "string", "string", "string"],
-      "answer": "string",
-      "category": "{category}",
-      "targetAge": "{age}"
+      "title": "string", "passage": "string", "type": "multiple_choice",
+      "options": ["string", "string", "string", "string"], "answer": "string",
+      "category": "{category}", "targetAge": "{age}"
     }}
     """
 
-    # Gemini API 호출
     try:
-        # ✨ 해결책: 안정적인 최신 모델 이름(gemini-1.5-pro-latest)으로 변경
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         headers = {'Content-Type': 'application/json'}
         
-        response = requests.post(url, json=payload)
-        response.raise_for_status() # HTTP 오류 발생 시 예외 처리
+        # ✨ 해결책: '똑똑한 재시도(Exponential Backoff)' 로직 추가
+        retries = 3
+        delay = 2  # 초기 대기 시간 (초)
+        for i in range(retries):
+            response = requests.post(url, json=payload, timeout=90) # 타임아웃 시간 연장
+            if response.status_code == 429:
+                print(f"API 요청 한도 초과. {delay}초 후 재시도합니다... ({i + 1}/{retries})")
+                time.sleep(delay)
+                delay *= 2  # 다음 재시도 시 대기 시간 2배 증가
+                continue
+            
+            response.raise_for_status() # 429 이외의 다른 오류 발생 시 예외 처리
+            break # 성공 시 루프 탈출
         
         result_text = response.json()['candidates'][0]['content']['parts'][0]['text']
         
@@ -178,6 +182,7 @@ def submit_result():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
