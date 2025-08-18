@@ -22,7 +22,6 @@
         .glowing-border { box-shadow: 0 0 5px rgba(34, 211, 238, 0.5), 0 0 10px rgba(34, 211, 238, 0.3); }
         .option-label { transition: all 0.2s ease-in-out; }
         .peer:checked + .option-label { background-color: rgba(8, 145, 178, 0.3); border-color: #06b6d4; transform: scale(1.02); }
-        /* ✨ 서술형 답변창 스타일 (요청사항 반영) */
         .essay-textarea { width: 100%; min-height: 150px; background-color: rgba(17, 24, 39, 0.8); border: 1px solid #4b5563; border-radius: 0.5rem; color: #f9fafb; padding: 0.75rem; resize: vertical; transition: border-color 0.3s; }
         .essay-textarea:focus { outline: none; border-color: #06b6d4; }
         .char-counter { text-align: right; color: #9ca3af; font-size: 0.9em; margin-top: 0.5rem; }
@@ -91,14 +90,13 @@
     </div>
 
     <script>
-        // --- DOM Elements ---
         const screens = { login: document.getElementById('login-screen'), userInfo: document.getElementById('user-info-screen'), test: document.getElementById('test-screen'), result: document.getElementById('result-screen') };
         const loginBtn = document.getElementById('login-btn'), startBtn = document.getElementById('start-btn'), nextBtn = document.getElementById('next-btn'), restartBtn = document.getElementById('restart-btn');
-        
-        // --- State ---
         let state = { userInfo: {}, questions: [], currentQuestionIndex: 0, userAnswers: [] };
 
-        // --- Functions ---
+        // ✨ 해결책: API 경로를 '/api/...'로 수정
+        const API_BASE_URL = '/api';
+
         function switchScreen(screenName) {
             const currentScreen = Object.values(screens).find(s => !s.classList.contains('hidden'));
             if (currentScreen) {
@@ -127,14 +125,14 @@
             loginBtn.textContent = '확인 중...';
 
             try {
-                const response = await fetch('/validate-code', { 
+                const response = await fetch(`${API_BASE_URL}/validate-code`, { 
                     method: 'POST', 
                     headers: {'Content-Type': 'application/json'}, 
                     body: JSON.stringify({ code: codeInput.value.toUpperCase() }) 
                 });
                 const data = await response.json();
                 if (data.success) {
-                    state.userInfo.accessCode = codeInput.value.toUpperCase(); // 사용된 코드 저장
+                    state.userInfo.accessCode = codeInput.value.toUpperCase();
                     switchScreen('userInfo');
                 } else {
                     errorEl.textContent = data.message || '접근에 실패했습니다.';
@@ -161,7 +159,7 @@
             startBtn.textContent = '사건 파일 구성 중...';
 
             try {
-                const response = await fetch('/get-test', { 
+                const response = await fetch(`${API_BASE_URL}/get-test`, { 
                     method: 'POST', 
                     headers: {'Content-Type': 'application/json'}, 
                     body: JSON.stringify({ age: state.userInfo.age }) 
@@ -201,7 +199,7 @@
                             <label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50">${optionText}</label>
                         </div>`;
                 });
-            } else if (question.type === 'essay') { // ✨ 'text_input'을 'essay'로 변경
+            } else if (question.type === 'essay') {
                 questionOptions.classList.remove('grid', 'md:grid-cols-2', 'gap-4');
                 questionOptions.innerHTML = `
                     <div>
@@ -209,14 +207,9 @@
                         <div id="char-counter" class="char-counter">0자</div>
                     </div>`;
                 
-                // ✨ 글자 수 카운터 이벤트 리스너 추가
                 document.getElementById('essay-answer').addEventListener('input', (e) => {
                     const currentLength = e.target.value.length;
-                    const counter = document.getElementById('char-counter');
-                    counter.textContent = `${currentLength}자`;
-                    if (question.minChars) {
-                        counter.style.color = currentLength >= question.minChars ? '#34d399' : '#9ca3af';
-                    }
+                    document.getElementById('char-counter').textContent = `${currentLength}자`;
                     updateNextButtonState();
                 });
             }
@@ -232,7 +225,7 @@
                 }
             } else if (question.type === 'essay') {
                 const text = document.getElementById('essay-answer').value;
-                if (text.length >= (question.minChars || 1)) { // 최소 글자 수 조건 확인
+                if (text.length >= (question.minChars || 1)) {
                     isAnswered = true;
                 }
             }
@@ -265,7 +258,7 @@
             nextBtn.textContent = '분석 중...';
 
             try {
-                const response = await fetch('/submit-result', {
+                const response = await fetch(`${API_BASE_URL}/submit-result`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ userInfo: state.userInfo, answers: state.userAnswers })
@@ -283,7 +276,6 @@
             }
         }
 
-        // --- Event Listeners ---
         loginBtn.addEventListener('click', handleLogin);
         startBtn.addEventListener('click', startTest);
         nextBtn.addEventListener('click', handleNext);
@@ -294,9 +286,9 @@
             }
         });
 
-        // --- Initial Load ---
         switchScreen('login');
         nextBtn.disabled = true;
     </script>
 </body>
 </html>
+
