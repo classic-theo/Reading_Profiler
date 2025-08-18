@@ -7,6 +7,7 @@ from flask import Flask, render_template, jsonify, request
 import firebase_admin
 from firebase_admin import credentials, firestore
 import gspread
+import requests # Gemini API 호출을 위해 requests 라이브러리 추가
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
@@ -14,6 +15,8 @@ app = Flask(__name__, template_folder='templates')
 # --- 2. 외부 서비스 초기화 ---
 db = None
 sheet = None
+# Render 환경 변수에서 Gemini API 키를 불러옵니다.
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') 
 
 # Firebase 초기화
 try:
@@ -48,12 +51,8 @@ try:
         
     sheet = gc.open(SHEET_NAME).sheet1
     print(f"'{SHEET_NAME}' 시트 열기 성공")
-except gspread.exceptions.SpreadsheetNotFound:
-    print(f"Google Sheets 초기화 실패: '{SHEET_NAME}' 시트를 찾을 수 없습니다.")
-    print("🚨 중요: 시트 이름이 정확한지, 서비스 계정에 '편집자'로 공유되었는지 확인해주세요.")
 except Exception as e:
-    print(f"Google Sheets 초기화 실패: 예상치 못한 오류 발생")
-    print(f"오류 타입: {type(e).__name__}, 오류 내용: {e}")
+    print(f"Google Sheets 초기화 실패: {e}")
 
 
 # --- 3. 라우팅 (API 엔드포인트) ---
@@ -66,7 +65,58 @@ def serve_index():
 def serve_admin():
     return render_template('admin.html')
 
-# ✨ API 경로는 '/api/...'로 통일
+# ✨ AI 문제 생성 API 추가
+@app.route('/api/generate-question', methods=['POST'])
+def generate_question_from_ai():
+    if not GEMINI_API_KEY:
+        return jsonify({"success": False, "message": "Gemini API 키가 설정되지 않았습니다."}), 500
+
+    data = request.get_json()
+    age = data.get('age', '15')
+    category = data.get('category', 'logic')
+    
+    prompt = f"""
+    독서력 평가 문제 출제 전문가로서, 다음 조건에 맞는 객관식 문제를 생성해줘.
+    1. 대상 연령: {age}세
+    2. 측정 능력: {category}
+    3. 지문 (passage): 측정 능력에 맞는 2~3문단 길이의 흥미로운 지문을 직접 창작.
+    4. 문제 (title): 지문의 내용을 바탕으로 한 객관식 질문. (예: [사건 파일 No.XXX] - {category})
+    5. 선택지 (options): 4개의 선택지를 배열(array) 형태로, 그 중 하나는 명확한 정답.
+    6. 정답 (answer): 4개의 선택지 중 정답에 해당하는 문장.
+    출력 형식은 반드시 아래의 JSON 스키마를 따라야 해:
+    {{
+      "title": "string", "passage": "string", "type": "multiple_choice",
+      "options": ["string", "string", "string", "string"], "answer": "string",
+      "category": "{category}", "targetAge": "{age}"
+    }}
+    """
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        headers = {'Content-Type': 'application/json'}
+        
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        
+        result_text = response.json()['candidates'][0]['content']['parts'][0]['text']
+        
+        if result_text.strip().startswith("```json"):
+            result_text = result_text.strip()[7:-3]
+
+        question_data = json.loads(result_text)
+
+        if db:
+            doc_ref = db.collection('questions').add(question_data)
+            print(f"AI 생성 문제 저장 성공. Document ID: {doc_ref[1].id}")
+            return jsonify({"success": True, "message": "AI가 새로운 문제를 생성하여 DB에 추가했습니다."})
+        else:
+            return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+
+    except Exception as e:
+        print(f"AI 문제 생성 오류: {e}")
+        return jsonify({"success": False, "message": f"AI 문제 생성 중 오류 발생: {e}"}), 500
+
 @app.route('/api/generate-code', methods=['POST'])
 def generate_code():
     if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
@@ -106,11 +156,15 @@ def validate_code():
 
 @app.route('/api/get-test', methods=['POST'])
 def get_test():
-    mock_questions = [
-        { 'id': 'q1', 'type': 'multiple_choice', 'title': '[사건 파일 No.301] - 정보 이해력', 'passage': '새로운 사건 정보를 접할 때, 당신의 본능은 어떤 자료로 가장 먼저 향합니까?', 'options': ['사건 개요 및 요약 보고서', '관련 인물들의 상세 프로필', '사건 현장 사진 및 증거물 목록', '과거 유사 사건 기록']},
-        { 'id': 'q2', 'type': 'essay', 'title': '[사건 파일 No.303] - 당신의 분석 방식', 'passage': '당신에게 풀리지 않는 미제 사건 파일이 주어졌습니다. 어떤 방식으로 접근하여 해결의 실마리를 찾아나갈 것인지 구체적으로 서술하시오.', 'minChars': 100},
-    ]
-    return jsonify(mock_questions)
+    if not db: return jsonify([]), 500
+    try:
+        questions_ref = db.collection('questions').stream()
+        all_questions = [doc.to_dict() for doc in questions_ref]
+        if not all_questions:
+             return jsonify([{'title': '임시 문제', 'passage': 'DB에 문제가 없습니다.', 'type': 'multiple_choice', 'options':['확인'], 'answer':'확인'}])
+        return jsonify(random.sample(all_questions, min(len(all_questions), 7)))
+    except Exception as e:
+        return jsonify([]), 500
 
 @app.route('/api/submit-result', methods=['POST'])
 def submit_result():
@@ -142,5 +196,6 @@ def submit_result():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
