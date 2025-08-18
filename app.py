@@ -37,7 +37,8 @@ except Exception as e:
 # Google Sheets 초기화
 try:
     google_creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS_JSON')
-    SHEET_NAME = "독서력 진단 결과"
+    # ✨ 해결책 2: 오류 가능성이 없는 간단한 영문 이름으로 변경
+    SHEET_NAME = "CSI_PROFILER_RESULTS"
 
     if google_creds_json:
         creds_dict = json.loads(google_creds_json)
@@ -54,10 +55,8 @@ except gspread.exceptions.SpreadsheetNotFound:
     print(f"Google Sheets 초기화 실패: '{SHEET_NAME}' 시트를 찾을 수 없습니다.")
     print("🚨 중요: 시트 이름이 정확한지, 서비스 계정에 '편집자'로 공유되었는지 확인해주세요.")
 except Exception as e:
-    # ✨ 해결책 2: 더 자세한 오류 내용 출력
     print(f"Google Sheets 초기화 실패: 예상치 못한 오류 발생")
-    print(f"오류 타입: {type(e).__name__}")
-    print(f"오류 내용: {e}")
+    print(f"오류 타입: {type(e).__name__}, 오류 내용: {e}")
 
 
 # --- 3. 라우팅 (API 엔드포인트) ---
@@ -110,18 +109,44 @@ def validate_code():
 
 @app.route('/api/get-test', methods=['POST'])
 def get_test():
-    # ... (생략)
-    return jsonify([])
+    # 이 부분은 실제 DB에서 문제를 가져오는 로직으로 확장될 수 있습니다.
+    mock_questions = [
+        { 'id': 'q1', 'type': 'multiple_choice', 'title': '[사건 파일 No.301] - 선호하는 정보 유형', 'passage': '새로운 사건 정보를 접할 때, 당신의 본능은 어떤 자료로 가장 먼저 향합니까?', 'options': ['사건 개요 및 요약 보고서', '관련 인물들의 상세 프로필', '사건 현장 사진 및 증거물 목록', '과거 유사 사건 기록']},
+        { 'id': 'q2', 'type': 'essay', 'title': '[사건 파일 No.303] - 당신의 분석 방식', 'passage': '당신에게 풀리지 않는 미제 사건 파일이 주어졌습니다. 어떤 방식으로 접근하여 해결의 실마리를 찾아나갈 것인지 구체적으로 서술하시오.', 'minChars': 100},
+    ]
+    return jsonify(mock_questions)
 
 @app.route('/api/submit-result', methods=['POST'])
 def submit_result():
-    # ... (생략)
-    return jsonify({"success": True, "report": {"overall_comment": "분석 완료"}})
+    if not db: return jsonify({"success": False, "error": "데이터베이스 연결 실패"}), 500
+    data = request.get_json()
+    user_info = data.get('userInfo', {})
+    access_code = user_info.get('accessCode', '').upper()
+
+    if access_code:
+        try:
+            db.collection('access_codes').document(access_code).update({'isUsed': True, 'userName': user_info.get('name')})
+            print(f"접근 코드 사용 처리 완료: {access_code}")
+        except Exception as e:
+            print(f"접근 코드 업데이트 오류: {e}")
+
+    final_report = {"overall_comment": f"**{user_info.get('name')}님, 분석이 완료되었습니다.**\n\n제출된 내용을 바탕으로 한 상세 보고서는 관리자에게 전달됩니다."}
+    
+    try:
+        if sheet:
+            row = [datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), user_info.get('name', 'N/A'), user_info.get('age', 'N/A')]
+            sheet.append_row(row)
+            print("Google Sheets에 결과 저장 성공")
+    except Exception as e:
+        print(f"Google Sheets 저장 오류: {e}")
+
+    return jsonify({"success": True, "report": final_report})
 
 # --- 4. Flask 앱 실행 ---
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
