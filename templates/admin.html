@@ -28,10 +28,8 @@
                 <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
                     <h2 class="text-2xl font-bold text-cyan-300 mb-4">접근 코드 관리</h2>
                     <button id="generate-code-btn" class="btn-primary font-bold py-2 px-6 rounded-lg">새 코드 생성</button>
-                    <!-- ✨ 수정: 코드와 복사 버튼을 나란히 배치하기 위한 flex 컨테이너 -->
                     <div class="mt-4 flex items-center justify-center space-x-3 h-8">
                         <p id="new-code-display" class="text-2xl font-orbitron text-green-400"></p>
-                        <!-- ✨ 추가: 복사 버튼 -->
                         <button id="copy-code-btn" class="hidden items-center justify-center bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg transition-opacity duration-300">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                 <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
@@ -95,7 +93,6 @@
         const aiStatus = document.getElementById('ai-status');
         const ageSelect = document.getElementById('age-select');
         const categorySelect = document.getElementById('category-select');
-        // ✨ 추가: 복사 버튼 요소 선택
         const copyCodeBtn = document.getElementById('copy-code-btn');
 
         const API_BASE_URL = '/api';
@@ -128,23 +125,32 @@
             generateCodeBtn.disabled = true;
             generateCodeBtn.textContent = '생성 중...';
             newCodeDisplay.textContent = '';
-            // ✨ 수정: 코드 생성 시 복사 버튼 숨기기
             copyCodeBtn.classList.add('hidden');
 
             try {
                 const response = await fetch(`${API_BASE_URL}/generate-code`, { method: 'POST' });
+
+                // ✨ 디버깅 강화: 응답 상태를 먼저 확인하고, 문제가 있으면 더 자세한 오류를 표시합니다.
+                if (!response.ok) {
+                    // 서버가 보낸 오류 메시지가 있다면 그것을 표시합니다.
+                    const errorText = await response.text();
+                    newCodeDisplay.textContent = `오류: ${response.status} - ${errorText || response.statusText}`;
+                    return; 
+                }
+
                 const data = await response.json();
 
                 if (data.success) {
                     newCodeDisplay.textContent = data.code;
-                    // ✨ 수정: 코드 생성 성공 시 복사 버튼 보이기
                     copyCodeBtn.classList.remove('hidden');
                     await fetchCodes();
                 } else {
                     newCodeDisplay.textContent = data.message || '생성 실패';
                 }
             } catch (error) {
-                newCodeDisplay.textContent = '서버 통신 오류';
+                // ✨ 디버깅 강화: 실제 에러를 콘솔에 출력하고, 사용자에게 안내합니다.
+                console.error("코드 생성 중 에러 발생:", error);
+                newCodeDisplay.textContent = '통신 오류 (개발자 콘솔 확인)';
             } finally {
                 generateCodeBtn.disabled = false;
                 generateCodeBtn.textContent = '새 코드 생성';
@@ -162,12 +168,10 @@
         generateQuestionBtn.addEventListener('click', generateNewQuestion);
         document.addEventListener('DOMContentLoaded', fetchCodes);
 
-        // ✨ 추가: 복사 버튼 클릭 이벤트 리스너
         copyCodeBtn.addEventListener('click', () => {
             const codeToCopy = newCodeDisplay.textContent;
             if (!codeToCopy) return;
 
-            // 임시 textarea를 만들어 복사하는 방식 (iframe 호환성)
             const tempInput = document.createElement('textarea');
             tempInput.value = codeToCopy;
             document.body.appendChild(tempInput);
@@ -175,7 +179,6 @@
             document.execCommand('copy');
             document.body.removeChild(tempInput);
 
-            // 사용자에게 피드백 제공
             const originalIcon = copyCodeBtn.innerHTML;
             copyCodeBtn.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg text-green-400" viewBox="0 0 16 16">
@@ -189,5 +192,3 @@
     </script>
 </body>
 </html>
-
-
