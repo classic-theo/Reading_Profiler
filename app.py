@@ -37,7 +37,7 @@ except Exception as e:
 # Google Sheets 초기화
 try:
     google_creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS_JSON')
-    SHEET_NAME = "CSI 독서 프로파일러 결과"
+    SHEET_NAME = "독서력 진단 결과"
 
     if google_creds_json:
         creds_dict = json.loads(google_creds_json)
