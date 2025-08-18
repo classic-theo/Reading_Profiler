@@ -95,6 +95,7 @@
         const categorySelect = document.getElementById('category-select');
         const copyCodeBtn = document.getElementById('copy-code-btn');
 
+        // ✨ 해결책: API 경로를 '/api'로 명확히 지정
         const API_BASE_URL = '/api';
 
         // --- 코드 관리 기능 ---
@@ -128,11 +129,10 @@
             copyCodeBtn.classList.add('hidden');
 
             try {
+                // ✨ 해결책: fetch 경로가 '/api/generate-code'를 호출하도록 확인
                 const response = await fetch(`${API_BASE_URL}/generate-code`, { method: 'POST' });
 
-                // ✨ 디버깅 강화: 응답 상태를 먼저 확인하고, 문제가 있으면 더 자세한 오류를 표시합니다.
                 if (!response.ok) {
-                    // 서버가 보낸 오류 메시지가 있다면 그것을 표시합니다.
                     const errorText = await response.text();
                     newCodeDisplay.textContent = `오류: ${response.status} - ${errorText || response.statusText}`;
                     return; 
@@ -148,7 +148,6 @@
                     newCodeDisplay.textContent = data.message || '생성 실패';
                 }
             } catch (error) {
-                // ✨ 디버깅 강화: 실제 에러를 콘솔에 출력하고, 사용자에게 안내합니다.
                 console.error("코드 생성 중 에러 발생:", error);
                 newCodeDisplay.textContent = '통신 오류 (개발자 콘솔 확인)';
             } finally {
@@ -159,7 +158,32 @@
 
         // --- AI 문제 생성 기능 ---
         async function generateNewQuestion() {
-            // ... (기존과 동일, 생략)
+            generateQuestionBtn.disabled = true;
+            generateQuestionBtn.textContent = 'AI가 문제를 생성하는 중...';
+            aiStatus.textContent = 'AI에게 요청을 보내는 중... 지문과 문제를 창작하는 데 시간이 걸릴 수 있습니다.';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate-question`, { 
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        age: ageSelect.value,
+                        category: categorySelect.value
+                    })
+                });
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    aiStatus.textContent = `✅ 성공: ${data.message}`;
+                } else {
+                    aiStatus.textContent = `❌ 실패: ${data.message || '알 수 없는 오류'}`;
+                }
+            } catch (error) {
+                aiStatus.textContent = `❌ 네트워크 오류: 서버와 통신할 수 없습니다.`;
+            } finally {
+                generateQuestionBtn.disabled = false;
+                generateQuestionBtn.textContent = 'AI에게 문제 생성 요청';
+            }
         }
 
         // --- 이벤트 리스너 ---
@@ -192,3 +216,4 @@
     </script>
 </body>
 </html>
+
