@@ -2,7 +2,7 @@ import os
 import json
 import random
 import string
-import time # ✨ '똑똑한 재시도' 기능을 위해 time 라이브러리 추가
+import time 
 from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, request
 import firebase_admin
@@ -88,21 +88,28 @@ def generate_question_from_ai():
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         headers = {'Content-Type': 'application/json'}
         
-        # ✨ 해결책: '똑똑한 재시도(Exponential Backoff)' 로직 추가
         retries = 3
-        delay = 2  # 초기 대기 시간 (초)
+        delay = 2
         for i in range(retries):
-            response = requests.post(url, json=payload, timeout=90) # 타임아웃 시간 연장
+            response = requests.post(url, json=payload, timeout=90)
             if response.status_code == 429:
                 print(f"API 요청 한도 초과. {delay}초 후 재시도합니다... ({i + 1}/{retries})")
                 time.sleep(delay)
-                delay *= 2  # 다음 재시도 시 대기 시간 2배 증가
+                delay *= 2
                 continue
             
-            response.raise_for_status() # 429 이외의 다른 오류 발생 시 예외 처리
-            break # 성공 시 루프 탈출
+            response.raise_for_status()
+            break
         
-        result_text = response.json()['candidates'][0]['content']['parts'][0]['text']
+        api_response = response.json()
+
+        # ✨ 해결책 1: API 응답 구조를 안전하게 확인
+        if 'candidates' not in api_response or not api_response['candidates']:
+            print(f"Gemini API 응답 형식 오류: {api_response}")
+            error_message = api_response.get('error', {}).get('message', "AI로부터 유효한 응답을 받지 못했습니다. (CANDIDATES_MISSING)")
+            raise ValueError(f"API 응답 오류: {error_message}")
+
+        result_text = api_response['candidates'][0]['content']['parts'][0]['text']
         
         if result_text.strip().startswith("```json"):
             result_text = result_text.strip()[7:-3]
@@ -182,6 +189,7 @@ def submit_result():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
