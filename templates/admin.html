@@ -60,17 +60,19 @@
                 <div class="space-y-4">
                     <div>
                         <label for="age-select" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
+                        <!-- ✨ 수정: 첫 번째 옵션에 'selected' 추가 -->
                         <select id="age-select" class="form-select w-full rounded-lg p-2.5">
-                            <option value="10-13">10-13세</option>
-                            <option value="14-16" selected>14-16세</option>
+                            <option value="10-13" selected>10-13세</option>
+                            <option value="14-16">14-16세</option>
                             <option value="17-19">17-19세</option>
                         </select>
                     </div>
                     <div>
                         <label for="category-select" class="block mb-2 text-sm font-medium text-gray-300">측정 능력</label>
+                        <!-- ✨ 수정: 첫 번째 옵션에 'selected' 추가 -->
                         <select id="category-select" class="form-select w-full rounded-lg p-2.5">
-                            <option value="comprehension">정보 이해력</option>
-                            <option value="logic" selected>논리 분석력</option>
+                            <option value="comprehension" selected>정보 이해력</option>
+                            <option value="logic">논리 분석력</option>
                             <option value="inference">단서 추론력</option>
                             <option value="creativity">창의적 서술력</option>
                             <option value="critical_thinking">비판적 사고력</option>
@@ -78,7 +80,12 @@
                     </div>
                     <button id="generate-question-btn" class="w-full btn-primary font-bold py-3 rounded-lg">AI에게 문제 생성 요청</button>
                 </div>
-                <div id="ai-status" class="mt-4 p-4 bg-gray-700/50 rounded-lg h-24 text-gray-300 overflow-y-auto">AI 상태: 대기 중...</div>
+                <div id="ai-status" class="mt-4 p-4 bg-gray-700/50 rounded-lg h-24 text-gray-300 overflow-y-auto">
+                    <p id="ai-status-text">AI 상태: 대기 중...</p>
+                    <div id="ai-progress-bar-container" class="w-full bg-gray-600 rounded-full h-2.5 mt-2 hidden">
+                        <div id="ai-progress-bar" class="bg-cyan-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -90,12 +97,14 @@
         const codeListBody = document.getElementById('code-list-body');
         const refreshCodesBtn = document.getElementById('refresh-codes-btn');
         const generateQuestionBtn = document.getElementById('generate-question-btn');
-        const aiStatus = document.getElementById('ai-status');
+        const aiStatusText = document.getElementById('ai-status-text');
+        const aiProgressBarContainer = document.getElementById('ai-progress-bar-container');
+        const aiProgressBar = document.getElementById('ai-progress-bar');
         const ageSelect = document.getElementById('age-select');
         const categorySelect = document.getElementById('category-select');
         const copyCodeBtn = document.getElementById('copy-code-btn');
+        let progressInterval = null;
 
-        // ✨ 해결책: API 경로를 '/api'로 명확히 지정
         const API_BASE_URL = '/api';
 
         // --- 코드 관리 기능 ---
@@ -121,7 +130,6 @@
                 codeListBody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-red-500">목록 로딩 실패</td></tr>';
             }
         }
-
         async function generateNewCode() {
             generateCodeBtn.disabled = true;
             generateCodeBtn.textContent = '생성 중...';
@@ -129,7 +137,6 @@
             copyCodeBtn.classList.add('hidden');
 
             try {
-                // ✨ 해결책: fetch 경로가 '/api/generate-code'를 호출하도록 확인
                 const response = await fetch(`${API_BASE_URL}/generate-code`, { method: 'POST' });
 
                 if (!response.ok) {
@@ -160,7 +167,19 @@
         async function generateNewQuestion() {
             generateQuestionBtn.disabled = true;
             generateQuestionBtn.textContent = 'AI가 문제를 생성하는 중...';
-            aiStatus.textContent = 'AI에게 요청을 보내는 중... 지문과 문제를 창작하는 데 시간이 걸릴 수 있습니다.';
+            
+            aiStatusText.textContent = 'AI에게 요청을 보내는 중... (최대 90초 소요)';
+            aiProgressBar.style.width = '0%';
+            aiProgressBarContainer.classList.remove('hidden');
+
+            let progress = 0;
+            progressInterval = setInterval(() => {
+                progress += 5;
+                aiProgressBar.style.width = `${progress}%`;
+                if (progress >= 95) {
+                    clearInterval(progressInterval);
+                }
+            }, 1000);
 
             try {
                 const response = await fetch(`${API_BASE_URL}/generate-question`, { 
@@ -171,18 +190,27 @@
                         category: categorySelect.value
                     })
                 });
+                
+                clearInterval(progressInterval);
+                aiProgressBar.style.width = '100%';
+
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    aiStatus.textContent = `✅ 성공: ${data.message}`;
+                    aiStatusText.textContent = `✅ 성공: ${data.message}`;
                 } else {
-                    aiStatus.textContent = `❌ 실패: ${data.message || '알 수 없는 오류'}`;
+                    aiStatusText.textContent = `❌ 실패: ${data.message || '알 수 없는 오류'}`;
                 }
             } catch (error) {
-                aiStatus.textContent = `❌ 네트워크 오류: 서버와 통신할 수 없습니다.`;
+                clearInterval(progressInterval);
+                aiProgressBar.style.width = '100%';
+                aiStatusText.textContent = `❌ 네트워크 오류: 서버와 통신할 수 없습니다.`;
             } finally {
                 generateQuestionBtn.disabled = false;
                 generateQuestionBtn.textContent = 'AI에게 문제 생성 요청';
+                setTimeout(() => {
+                    aiProgressBarContainer.classList.add('hidden');
+                }, 5000);
             }
         }
 
@@ -191,7 +219,6 @@
         refreshCodesBtn.addEventListener('click', fetchCodes);
         generateQuestionBtn.addEventListener('click', generateNewQuestion);
         document.addEventListener('DOMContentLoaded', fetchCodes);
-
         copyCodeBtn.addEventListener('click', () => {
             const codeToCopy = newCodeDisplay.textContent;
             if (!codeToCopy) return;
@@ -216,4 +243,5 @@
     </script>
 </body>
 </html>
+
 
