@@ -37,8 +37,7 @@ except Exception as e:
 # Google Sheets 초기화
 try:
     google_creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS_JSON')
-    # ✨ 해결책 2: 오류 가능성이 없는 간단한 영문 이름으로 변경
-    SHEET_NAME = "CSI_PROFILER_RESULTS"
+    SHEET_NAME = "독서력 진단 결과" # 실제 시트 이름으로 변경
 
     if google_creds_json:
         creds_dict = json.loads(google_creds_json)
@@ -69,7 +68,7 @@ def serve_index():
 def serve_admin():
     return render_template('admin.html')
 
-# ✨ 해결책 1: API 경로를 '/api/...'로 명확하게 분리
+# ✨ API 경로는 '/api/...'로 통일
 @app.route('/api/generate-code', methods=['POST'])
 def generate_code():
     if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
@@ -109,7 +108,6 @@ def validate_code():
 
 @app.route('/api/get-test', methods=['POST'])
 def get_test():
-    # 이 부분은 실제 DB에서 문제를 가져오는 로직으로 확장될 수 있습니다.
     mock_questions = [
         { 'id': 'q1', 'type': 'multiple_choice', 'title': '[사건 파일 No.301] - 선호하는 정보 유형', 'passage': '새로운 사건 정보를 접할 때, 당신의 본능은 어떤 자료로 가장 먼저 향합니까?', 'options': ['사건 개요 및 요약 보고서', '관련 인물들의 상세 프로필', '사건 현장 사진 및 증거물 목록', '과거 유사 사건 기록']},
         { 'id': 'q2', 'type': 'essay', 'title': '[사건 파일 No.303] - 당신의 분석 방식', 'passage': '당신에게 풀리지 않는 미제 사건 파일이 주어졌습니다. 어떤 방식으로 접근하여 해결의 실마리를 찾아나갈 것인지 구체적으로 서술하시오.', 'minChars': 100},
@@ -146,6 +144,7 @@ def submit_result():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
