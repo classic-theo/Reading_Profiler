@@ -244,6 +244,8 @@
                     updateNextButtonState();
                 });
             }
+            
+            document.querySelectorAll('.confidence-btn').forEach(btn => btn.classList.remove('selected'));
             document.getElementById('confidence-selector').classList.add('hidden');
             updateNextButtonState();
         }
@@ -402,5 +404,6 @@
     </script>
 </body>
 </html>
+
 
 
