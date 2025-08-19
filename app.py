@@ -198,7 +198,8 @@ def submit_result():
     answers = data.get('answers', [])
     
     skill_scores = { "comprehension": 0, "logic": 0, "inference": 0, "creativity": 0, "critical_thinking": 0, "speed": 0 }
-    # ... (채점 로직 구현 필요)
+    # 채점 로직 구현 필요
+    # ...
 
     report = { 
         "skill_scores": skill_scores, 
@@ -207,7 +208,7 @@ def submit_result():
     
     try:
         if sheet:
-            # ... (시트 저장 로직 구현 필요)
+            # 시트 저장 로직 구현 필요
             pass
     except Exception as e:
         print(f"Google Sheets 저장 오류: {e}")
@@ -233,9 +234,9 @@ def get_codes():
     try:
         codes_ref = db.collection('access_codes').order_by('createdAt', direction=firestore.Query.DESCENDING).stream()
         codes = []
-        for code in codes_ref:
+        for doc in codes_ref:
             code_data = code.to_dict()
-            code_data['code'] = code.id
+            code_data['code'] = doc.id
             code_data['createdAt'] = code_data['createdAt'].strftime('%Y-%m-%d %H:%M:%S')
             codes.append(code_data)
         return jsonify(codes)
@@ -256,6 +257,7 @@ def validate_code():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
