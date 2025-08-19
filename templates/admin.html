@@ -77,6 +77,12 @@
                         </div>
                         <button id="generate-question-btn" class="w-full btn-primary font-bold py-3 rounded-lg">AI에게 문제 생성 요청</button>
                     </div>
+                    <div id="ai-status-direct" class="mt-4 p-4 bg-gray-700/50 rounded-lg h-24 text-gray-300 overflow-y-auto">
+                        <p class="ai-status-text">AI 상태: 대기 중...</p>
+                        <div class="ai-progress-bar-container w-full bg-gray-600 rounded-full h-2.5 mt-2 hidden">
+                            <div class="ai-progress-bar bg-cyan-500 h-2.5 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
@@ -103,12 +109,11 @@
                         <textarea id="text-input" class="form-textarea w-full rounded-lg p-2.5 h-48" placeholder="이곳에 기사나 지문 내용을 붙여넣으세요..."></textarea>
                         <button id="generate-from-text-btn" class="w-full btn-primary font-bold py-3 rounded-lg">붙여넣은 텍스트로 문제 생성</button>
                     </div>
-                </div>
-
-                <div id="ai-status" class="p-4 bg-gray-700/50 rounded-lg h-24 text-gray-300 overflow-y-auto">
-                    <p id="ai-status-text">AI 상태: 대기 중...</p>
-                    <div id="ai-progress-bar-container" class="w-full bg-gray-600 rounded-full h-2.5 mt-2 hidden">
-                        <div id="ai-progress-bar" class="bg-cyan-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    <div id="ai-status-text-based" class="mt-4 p-4 bg-gray-700/50 rounded-lg h-24 text-gray-300 overflow-y-auto">
+                        <p class="ai-status-text">AI 상태: 대기 중...</p>
+                        <div class="ai-progress-bar-container w-full bg-gray-600 rounded-full h-2.5 mt-2 hidden">
+                            <div class="ai-progress-bar bg-cyan-500 h-2.5 rounded-full" style="width: 0%"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -120,19 +125,20 @@
         const newCodeDisplay = document.getElementById('new-code-display');
         const codeListBody = document.getElementById('code-list-body');
         const refreshCodesBtn = document.getElementById('refresh-codes-btn');
+        const copyCodeBtn = document.getElementById('copy-code-btn');
+
         const generateQuestionBtn = document.getElementById('generate-question-btn');
-        const generateFromTextBtn = document.getElementById('generate-from-text-btn');
-        const textInput = document.getElementById('text-input');
-        const aiStatusText = document.getElementById('ai-status-text');
-        const aiProgressBarContainer = document.getElementById('ai-progress-bar-container');
-        const aiProgressBar = document.getElementById('ai-progress-bar');
         const ageSelect = document.getElementById('age-select');
         const categorySelect = document.getElementById('category-select');
-        const copyCodeBtn = document.getElementById('copy-code-btn');
+        const aiStatusDirect = document.getElementById('ai-status-direct');
+
+        const generateFromTextBtn = document.getElementById('generate-from-text-btn');
+        const textInput = document.getElementById('text-input');
         const textAgeSelect = document.getElementById('text-age-select');
         const textCategorySelect = document.getElementById('text-category-select');
-        let progressInterval = null;
+        const aiStatusTextBased = document.getElementById('ai-status-text-based');
 
+        let progressInterval = null;
         const API_BASE_URL = '/api';
 
         async function fetchCodes() {
@@ -183,38 +189,42 @@
             }
         }
 
-        function startAIProgress(message) {
-            generateQuestionBtn.disabled = true;
-            generateFromTextBtn.disabled = true;
-            generateQuestionBtn.textContent = 'AI 작업 중...';
-            generateFromTextBtn.textContent = 'AI 작업 중...';
+        function startAIProgress(statusElement, buttonElement, message) {
+            buttonElement.disabled = true;
+            buttonElement.textContent = 'AI 작업 중...';
             
-            aiStatusText.textContent = message;
-            aiProgressBar.style.width = '0%';
-            aiProgressBarContainer.classList.remove('hidden');
+            const statusText = statusElement.querySelector('.ai-status-text');
+            const progressBarContainer = statusElement.querySelector('.ai-progress-bar-container');
+            const progressBar = statusElement.querySelector('.ai-progress-bar');
+
+            statusText.textContent = message;
+            progressBar.style.width = '0%';
+            progressBarContainer.classList.remove('hidden');
 
             let progress = 0;
             progressInterval = setInterval(() => {
                 progress += 5;
-                aiProgressBar.style.width = `${progress}%`;
+                progressBar.style.width = `${progress}%`;
                 if (progress >= 95) clearInterval(progressInterval);
             }, 1000);
         }
 
-        function stopAIProgress() {
+        function stopAIProgress(statusElement, buttonElement, originalText) {
             clearInterval(progressInterval);
-            aiProgressBar.style.width = '100%';
-            generateQuestionBtn.disabled = false;
-            generateFromTextBtn.disabled = false;
-            generateQuestionBtn.textContent = 'AI에게 문제 생성 요청';
-            generateFromTextBtn.textContent = '붙여넣은 텍스트로 문제 생성';
+            const progressBarContainer = statusElement.querySelector('.ai-progress-bar-container');
+            const progressBar = statusElement.querySelector('.ai-progress-bar');
+            
+            progressBar.style.width = '100%';
+            buttonElement.disabled = false;
+            buttonElement.textContent = originalText;
+            
             setTimeout(() => {
-                aiProgressBarContainer.classList.add('hidden');
+                progressBarContainer.classList.add('hidden');
             }, 5000);
         }
 
         async function generateNewQuestion() {
-            startAIProgress('AI에게 요청을 보내는 중... (최대 90초 소요)');
+            startAIProgress(aiStatusDirect, generateQuestionBtn, 'AI에게 요청을 보내는 중...');
             try {
                 const response = await fetch(`${API_BASE_URL}/generate-question`, { 
                     method: 'POST',
@@ -222,11 +232,11 @@
                     body: JSON.stringify({ age: ageSelect.value, category: categorySelect.value })
                 });
                 const data = await response.json();
-                aiStatusText.textContent = response.ok && data.success ? `✅ 성공: ${data.message}` : `❌ 실패: ${data.message || '알 수 없는 오류'}`;
+                aiStatusDirect.querySelector('.ai-status-text').textContent = response.ok && data.success ? `✅ 성공: ${data.message}` : `❌ 실패: ${data.message || '알 수 없는 오류'}`;
             } catch (error) {
-                aiStatusText.textContent = `❌ 네트워크 오류: 서버와 통신할 수 없습니다.`;
+                aiStatusDirect.querySelector('.ai-status-text').textContent = `❌ 네트워크 오류`;
             } finally {
-                stopAIProgress();
+                stopAIProgress(aiStatusDirect, generateQuestionBtn, 'AI에게 문제 생성 요청');
             }
         }
 
@@ -235,7 +245,7 @@
                 alert('100자 이상의 텍스트를 입력해주세요.');
                 return;
             }
-            startAIProgress('붙여넣은 텍스트를 분석하고 문제를 생성하는 중...');
+            startAIProgress(aiStatusTextBased, generateFromTextBtn, '텍스트 분석 및 문제 생성 중...');
             try {
                 const response = await fetch(`${API_BASE_URL}/generate-question-from-text`, {
                     method: 'POST',
@@ -247,16 +257,12 @@
                     })
                 });
                 const data = await response.json();
-                aiStatusText.textContent = response.ok && data.success ? `✅ 성공: ${data.message}` : `❌ 실패: ${data.message || '알 수 없는 오류'}`;
-                
-                // ✨ 해결책: 성공 시 텍스트 입력창 비우기
-                if (response.ok && data.success) {
-                    textInput.value = '';
-                }
+                aiStatusTextBased.querySelector('.ai-status-text').textContent = response.ok && data.success ? `✅ 성공: ${data.message}` : `❌ 실패: ${data.message || '알 수 없는 오류'}`;
+                if (response.ok && data.success) textInput.value = '';
             } catch (error) {
-                aiStatusText.textContent = `❌ 네트워크 오류: 서버와 통신할 수 없습니다.`;
+                aiStatusTextBased.querySelector('.ai-status-text').textContent = `❌ 네트워크 오류`;
             } finally {
-                stopAIProgress();
+                stopAIProgress(aiStatusTextBased, generateFromTextBtn, '붙여넣은 텍스트로 문제 생성');
             }
         }
 
@@ -265,9 +271,8 @@
         generateQuestionBtn.addEventListener('click', generateNewQuestion);
         generateFromTextBtn.addEventListener('click', generateQuestionFromText);
         document.addEventListener('DOMContentLoaded', fetchCodes);
-        
         copyCodeBtn.addEventListener('click', () => {
-             const codeToCopy = newCodeDisplay.textContent;
+            const codeToCopy = newCodeDisplay.textContent;
             if (!codeToCopy) return;
 
             const tempInput = document.createElement('textarea');
@@ -290,6 +295,7 @@
     </script>
 </body>
 </html>
+
 
 
 
