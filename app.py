@@ -106,17 +106,33 @@ def generate_from_url():
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # ✨ 해결책: 불필요한 태그(메뉴, 광고, 스크립트 등)를 먼저 제거하는 방식으로 변경
-        for element in soup(['header', 'footer', 'nav', 'aside', 'script', 'style', 'a', 'form']):
-            element.decompose()
+        # ✨ 해결책: 3단계 지능형 크롤링 엔진 도입
+        text_content = ''
         
-        # 남은 텍스트를 모두 추출
-        text_content = ' '.join(soup.body.stripped_strings)
-        
+        # 1단계: article, main, 또는 id/class가 'content'/'post'/'article'인 태그를 먼저 탐색
+        main_content = soup.find('article') or soup.find('main') or soup.find(id='content') or soup.find(class_='post-content') or soup.find(class_='article-body')
+        if main_content:
+            print("크롤링 1단계 성공: 주요 콘텐츠 영역을 찾았습니다.")
+            text_content = ' '.join(main_content.stripped_strings)
+
+        # 2단계: 1단계 실패 시, 불필요한 태그를 제거하고 남은 텍스트 추출
+        if len(text_content) < 200:
+            print("크롤링 1단계 실패. 2단계(불필요한 태그 제거)를 시도합니다.")
+            for element in soup(['header', 'footer', 'nav', 'aside', 'script', 'style', 'a', 'form']):
+                element.decompose()
+            if soup.body:
+                text_content = ' '.join(soup.body.stripped_strings)
+
+        # 3단계: 2단계도 실패 시, 모든 p 태그의 텍스트를 수집
+        if len(text_content) < 200:
+            print("크롤링 2단계 실패. 3단계(모든 문단 수집)를 시도합니다.")
+            paragraphs = soup.find_all('p')
+            text_content = ' '.join([p.get_text(strip=True) for p in paragraphs])
+
         # 최종 텍스트 정리
         text_content = ' '.join(text_content.split())
         
-        if len(text_content) < 200: # 기준을 200자로 상향
+        if len(text_content) < 200:
             return jsonify({"success": False, "message": f"URL에서 충분한 텍스트(200자 이상)를 추출하지 못했습니다. (추출된 글자 수: {len(text_content)})"}), 400
         
         # 2. AI 프롬프트 생성
@@ -187,6 +203,7 @@ def validate_code():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
