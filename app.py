@@ -106,21 +106,13 @@ def generate_from_url():
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # ✨ 해결책: 더 똑똑한 본문 추출 로직으로 변경
-        # 1순위: article, main 태그 검색
-        main_content = soup.find('article') or soup.find('main')
+        # ✨ 해결책: 불필요한 태그(메뉴, 광고, 스크립트 등)를 먼저 제거하는 방식으로 변경
+        for element in soup(['header', 'footer', 'nav', 'aside', 'script', 'style', 'a', 'form']):
+            element.decompose()
         
-        text_content = ''
-        if main_content:
-            # 해당 영역의 모든 텍스트를 공백으로 연결
-            text_content = ' '.join(main_content.stripped_strings)
+        # 남은 텍스트를 모두 추출
+        text_content = ' '.join(soup.body.stripped_strings)
         
-        # 2순위: 1순위에서 텍스트를 못찾았을 경우, body 전체에서 p 태그 검색
-        if len(text_content) < 200:
-            print("1순위 본문 추출 실패, 2순위로 p 태그를 검색합니다.")
-            paragraphs = soup.find_all('p')
-            text_content = ' '.join([p.get_text(strip=True) for p in paragraphs])
-
         # 최종 텍스트 정리
         text_content = ' '.join(text_content.split())
         
@@ -195,6 +187,7 @@ def validate_code():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
