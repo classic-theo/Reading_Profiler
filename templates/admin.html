@@ -82,6 +82,25 @@
                 <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
                     <h2 class="text-2xl font-bold text-cyan-300 mb-4">🔗 AI 문제 생성기 (URL 기반)</h2>
                     <div class="space-y-4">
+                        <!-- ✨ 수정: URL 기반 생성기에도 연령 및 능력 선택 UI 추가 -->
+                        <div>
+                            <label for="url-age-select" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
+                            <select id="url-age-select" class="form-select w-full rounded-lg p-2.5">
+                                <option value="10-13" selected>10-13세</option>
+                                <option value="14-16">14-16세</option>
+                                <option value="17-19">17-19세</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="url-category-select" class="block mb-2 text-sm font-medium text-gray-300">측정 능력</label>
+                            <select id="url-category-select" class="form-select w-full rounded-lg p-2.5">
+                                <option value="comprehension" selected>정보 이해력</option>
+                                <option value="logic">논리 분석력</option>
+                                <option value="inference">단서 추론력</option>
+                                <option value="creativity">창의적 서술력</option>
+                                <option value="critical_thinking">비판적 사고력</option>
+                            </select>
+                        </div>
                         <input id="url-input" type="url" placeholder="https://..." class="form-input w-full rounded-lg p-2.5">
                         <button id="generate-from-url-btn" class="w-full btn-primary font-bold py-3 rounded-lg">URL 콘텐츠로 문제 5개 생성</button>
                     </div>
@@ -111,11 +130,13 @@
         const ageSelect = document.getElementById('age-select');
         const categorySelect = document.getElementById('category-select');
         const copyCodeBtn = document.getElementById('copy-code-btn');
+        // ✨ 수정: URL 기반 생성기의 UI 요소 추가
+        const urlAgeSelect = document.getElementById('url-age-select');
+        const urlCategorySelect = document.getElementById('url-category-select');
         let progressInterval = null;
 
         const API_BASE_URL = '/api';
 
-        // ✨ 해결책: 누락되었던 코드 관리 기능 JavaScript 복원
         async function fetchCodes() {
             try {
                 const response = await fetch(`${API_BASE_URL}/get-codes`);
@@ -218,10 +239,15 @@
             }
             startAIProgress('URL 콘텐츠를 분석하고 문제를 생성하는 중... (최대 2분 소요)');
             try {
+                // ✨ 수정: fetch 요청 시 연령 및 능력 정보 함께 전송
                 const response = await fetch(`${API_BASE_URL}/generate-question-from-url`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: urlInput.value })
+                    body: JSON.stringify({ 
+                        url: urlInput.value,
+                        age: urlAgeSelect.value,
+                        category: urlCategorySelect.value
+                    })
                 });
                 const data = await response.json();
                 aiStatusText.textContent = response.ok && data.success ? `✅ 성공: ${data.message}` : `❌ 실패: ${data.message || '알 수 없는 오류'}`;
@@ -262,6 +288,7 @@
     </script>
 </body>
 </html>
+
 
 
 
