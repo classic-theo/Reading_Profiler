@@ -12,7 +12,7 @@
         .btn-primary { background: linear-gradient(145deg, #0e7490, #164e63); color: white; transition: all 0.3s ease; }
         .btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
         .btn-primary:disabled { background: #4b5563; cursor: not-allowed; }
-        .form-input, .form-select { background-color: #374151; border-color: #4b5563; }
+        .form-input, .form-select, .form-textarea { background-color: #374151; border-color: #4b5563; }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -80,20 +80,19 @@
                 </div>
                 
                 <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">🔗 AI 문제 생성기 (URL 기반)</h2>
+                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">📝 AI 문제 생성기 (텍스트 기반)</h2>
                     <div class="space-y-4">
-                        <!-- ✨ 수정: URL 기반 생성기에도 연령 및 능력 선택 UI 추가 -->
                         <div>
-                            <label for="url-age-select" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
-                            <select id="url-age-select" class="form-select w-full rounded-lg p-2.5">
+                            <label for="text-age-select" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
+                            <select id="text-age-select" class="form-select w-full rounded-lg p-2.5">
                                 <option value="10-13" selected>10-13세</option>
                                 <option value="14-16">14-16세</option>
                                 <option value="17-19">17-19세</option>
                             </select>
                         </div>
                         <div>
-                            <label for="url-category-select" class="block mb-2 text-sm font-medium text-gray-300">측정 능력</label>
-                            <select id="url-category-select" class="form-select w-full rounded-lg p-2.5">
+                            <label for="text-category-select" class="block mb-2 text-sm font-medium text-gray-300">측정 능력</label>
+                            <select id="text-category-select" class="form-select w-full rounded-lg p-2.5">
                                 <option value="comprehension" selected>정보 이해력</option>
                                 <option value="logic">논리 분석력</option>
                                 <option value="inference">단서 추론력</option>
@@ -101,8 +100,8 @@
                                 <option value="critical_thinking">비판적 사고력</option>
                             </select>
                         </div>
-                        <input id="url-input" type="url" placeholder="https://..." class="form-input w-full rounded-lg p-2.5">
-                        <button id="generate-from-url-btn" class="w-full btn-primary font-bold py-3 rounded-lg">URL 콘텐츠로 문제 5개 생성</button>
+                        <textarea id="text-input" class="form-textarea w-full rounded-lg p-2.5 h-48" placeholder="이곳에 기사나 지문 내용을 붙여넣으세요..."></textarea>
+                        <button id="generate-from-text-btn" class="w-full btn-primary font-bold py-3 rounded-lg">붙여넣은 텍스트로 문제 생성</button>
                     </div>
                 </div>
 
@@ -122,17 +121,16 @@
         const codeListBody = document.getElementById('code-list-body');
         const refreshCodesBtn = document.getElementById('refresh-codes-btn');
         const generateQuestionBtn = document.getElementById('generate-question-btn');
-        const generateFromUrlBtn = document.getElementById('generate-from-url-btn');
-        const urlInput = document.getElementById('url-input');
+        const generateFromTextBtn = document.getElementById('generate-from-text-btn');
+        const textInput = document.getElementById('text-input');
         const aiStatusText = document.getElementById('ai-status-text');
         const aiProgressBarContainer = document.getElementById('ai-progress-bar-container');
         const aiProgressBar = document.getElementById('ai-progress-bar');
         const ageSelect = document.getElementById('age-select');
         const categorySelect = document.getElementById('category-select');
         const copyCodeBtn = document.getElementById('copy-code-btn');
-        // ✨ 수정: URL 기반 생성기의 UI 요소 추가
-        const urlAgeSelect = document.getElementById('url-age-select');
-        const urlCategorySelect = document.getElementById('url-category-select');
+        const textAgeSelect = document.getElementById('text-age-select');
+        const textCategorySelect = document.getElementById('text-category-select');
         let progressInterval = null;
 
         const API_BASE_URL = '/api';
@@ -187,9 +185,9 @@
 
         function startAIProgress(message) {
             generateQuestionBtn.disabled = true;
-            generateFromUrlBtn.disabled = true;
+            generateFromTextBtn.disabled = true;
             generateQuestionBtn.textContent = 'AI 작업 중...';
-            generateFromUrlBtn.textContent = 'AI 작업 중...';
+            generateFromTextBtn.textContent = 'AI 작업 중...';
             
             aiStatusText.textContent = message;
             aiProgressBar.style.width = '0%';
@@ -207,9 +205,9 @@
             clearInterval(progressInterval);
             aiProgressBar.style.width = '100%';
             generateQuestionBtn.disabled = false;
-            generateFromUrlBtn.disabled = false;
+            generateFromTextBtn.disabled = false;
             generateQuestionBtn.textContent = 'AI에게 문제 생성 요청';
-            generateFromUrlBtn.textContent = 'URL 콘텐츠로 문제 5개 생성';
+            generateFromTextBtn.textContent = '붙여넣은 텍스트로 문제 생성';
             setTimeout(() => {
                 aiProgressBarContainer.classList.add('hidden');
             }, 5000);
@@ -232,21 +230,20 @@
             }
         }
 
-        async function generateQuestionFromUrl() {
-            if (!urlInput.value) {
-                alert('URL을 입력해주세요.');
+        async function generateQuestionFromText() {
+            if (!textInput.value || textInput.value.length < 100) {
+                alert('100자 이상의 텍스트를 입력해주세요.');
                 return;
             }
-            startAIProgress('URL 콘텐츠를 분석하고 문제를 생성하는 중... (최대 2분 소요)');
+            startAIProgress('붙여넣은 텍스트를 분석하고 문제를 생성하는 중...');
             try {
-                // ✨ 수정: fetch 요청 시 연령 및 능력 정보 함께 전송
-                const response = await fetch(`${API_BASE_URL}/generate-question-from-url`, {
+                const response = await fetch(`${API_BASE_URL}/generate-question-from-text`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ 
-                        url: urlInput.value,
-                        age: urlAgeSelect.value,
-                        category: urlCategorySelect.value
+                        text: textInput.value,
+                        age: textAgeSelect.value,
+                        category: textCategorySelect.value
                     })
                 });
                 const data = await response.json();
@@ -261,7 +258,7 @@
         generateCodeBtn.addEventListener('click', generateNewCode);
         refreshCodesBtn.addEventListener('click', fetchCodes);
         generateQuestionBtn.addEventListener('click', generateNewQuestion);
-        generateFromUrlBtn.addEventListener('click', generateQuestionFromUrl);
+        generateFromTextBtn.addEventListener('click', generateQuestionFromText);
         document.addEventListener('DOMContentLoaded', fetchCodes);
         
         copyCodeBtn.addEventListener('click', () => {
@@ -288,6 +285,7 @@
     </script>
 </body>
 </html>
+
 
 
 
