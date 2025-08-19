@@ -84,37 +84,23 @@ def call_gemini_api(prompt):
     return json.loads(result_text)
 
 # --- AI 기반 문제 생성 API ---
-@app.route('/api/generate-question-from-url', methods=['POST'])
-def generate_from_url():
+@app.route('/api/generate-question-from-text', methods=['POST'])
+def generate_from_text():
     data = request.get_json()
-    url = data.get('url')
+    text_content = data.get('text')
     age = data.get('age', '15')
     category_en = data.get('category', 'comprehension')
     category_kr = CATEGORY_MAP.get(category_en, "정보 이해력")
 
-    if not url:
-        return jsonify({"success": False, "message": "URL이 제공되지 않았습니다."}), 400
+    if not text_content or len(text_content) < 100:
+        return jsonify({"success": False, "message": "100자 이상의 텍스트를 입력해주세요."}), 400
 
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        for element in soup(['header', 'footer', 'nav', 'aside', 'script', 'style', 'a', 'form']):
-            element.decompose()
-        text_content = ' '.join(soup.body.stripped_strings)
-        text_content = ' '.join(text_content.split())
-        
-        if len(text_content) < 200:
-            return jsonify({"success": False, "message": f"URL에서 충분한 텍스트(200자 이상)를 추출하지 못했습니다. (추출된 글자 수: {len(text_content)})"}), 400
-        
         prompt = f"""
-        주어진 텍스트를 분석하여 독서력 평가 문제를 만드는 AI 전문가입니다.
-        아래 "지문"을 바탕으로, 다음 조건에 맞는 객관식 문제를 1개 생성해주세요.
+        주어진 텍스트를 분석하여 독서력 평가 문제를 만드는 AI 전문가로서, 아래 "지문"을 바탕으로 다음 조건에 맞는 객관식 문제를 1개 생성해주세요.
         **지문:**
         ---
-        {text_content[:3000]} 
+        {text_content[:4000]} 
         ---
         **생성 조건:**
         1. 대상 연령: {age}세
@@ -132,11 +118,11 @@ def generate_from_url():
         question_data = call_gemini_api(prompt)
         if db:
             db.collection('questions').add(question_data)
-            return jsonify({"success": True, "message": f"URL 기반 '{category_kr}' 문제 1개를 DB에 추가했습니다."})
+            return jsonify({"success": True, "message": f"텍스트 기반 '{category_kr}' 문제 1개를 DB에 추가했습니다."})
         else:
             return jsonify({"success": False, "message": "DB 연결 실패"}), 500
     except Exception as e:
-        return jsonify({"success": False, "message": f"URL 문제 생성 오류: {e}"}), 500
+        return jsonify({"success": False, "message": f"텍스트 기반 문제 생성 오류: {e}"}), 500
 
 @app.route('/api/generate-question', methods=['POST'])
 def generate_question():
@@ -198,8 +184,7 @@ def submit_result():
     answers = data.get('answers', [])
     
     skill_scores = { "comprehension": 0, "logic": 0, "inference": 0, "creativity": 0, "critical_thinking": 0, "speed": 0 }
-    # 채점 로직 구현 필요
-    # ...
+    # ... (채점 로직 구현 필요)
 
     report = { 
         "skill_scores": skill_scores, 
@@ -208,7 +193,7 @@ def submit_result():
     
     try:
         if sheet:
-            # 시트 저장 로직 구현 필요
+            # ... (시트 저장 로직 구현 필요)
             pass
     except Exception as e:
         print(f"Google Sheets 저장 오류: {e}")
@@ -234,9 +219,9 @@ def get_codes():
     try:
         codes_ref = db.collection('access_codes').order_by('createdAt', direction=firestore.Query.DESCENDING).stream()
         codes = []
-        for doc in codes_ref:
+        for code in codes_ref:
             code_data = code.to_dict()
-            code_data['code'] = doc.id
+            code_data['code'] = code.id
             code_data['createdAt'] = code_data['createdAt'].strftime('%Y-%m-%d %H:%M:%S')
             codes.append(code_data)
         return jsonify(codes)
@@ -257,6 +242,7 @@ def validate_code():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
