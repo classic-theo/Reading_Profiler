@@ -9,7 +9,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import gspread
 import requests
-from bs4 import BeautifulSoup # URL 크롤링을 위한 라이브러리
+from bs4 import BeautifulSoup
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
@@ -27,13 +27,31 @@ CATEGORY_MAP = {
 
 # Firebase 초기화
 try:
-    # ... (기존과 동일, 생략)
+    firebase_creds_json = os.environ.get('FIREBASE_CREDENTIALS_JSON')
+    if firebase_creds_json:
+        cred_dict = json.loads(firebase_creds_json)
+        cred = credentials.Certificate(cred_dict)
+    else:
+        cred = credentials.Certificate('firebase_credentials.json')
+    
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("Firebase 초기화 성공")
 except Exception as e:
     print(f"Firebase 초기화 실패: {e}")
 
 # Google Sheets 초기화
 try:
-    # ... (기존과 동일, 생략)
+    google_creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS_JSON')
+    SHEET_NAME = "독서력 진단 결과"
+    if google_creds_json:
+        creds_dict = json.loads(google_creds_json)
+        gc = gspread.service_account_from_dict(creds_dict)
+    else:
+        gc = gspread.service_account(filename='google_sheets_credentials.json')
+    sheet = gc.open(SHEET_NAME).sheet1
+    print(f"'{SHEET_NAME}' 시트 열기 성공")
 except Exception as e:
     print(f"Google Sheets 초기화 실패: {e}")
 
@@ -41,25 +59,30 @@ except Exception as e:
 # --- 3. 라우팅 (API 엔드포인트) ---
 
 @app.route('/')
-def serve_index(): return render_template('index.html')
+def serve_index():
+    return render_template('index.html')
 
 @app.route('/admin')
-def serve_admin(): return render_template('admin.html')
+def serve_admin():
+    return render_template('admin.html')
 
 # --- AI 기반 문제 생성 API ---
 def create_ai_prompt(age, category, text=None):
-    # ... (AI 프롬프트 생성 로직, 생략)
-    pass
+    # AI 프롬프트 생성 로직 (세부 구현 필요)
+    # ...
+    return f"대상 연령: {age}, 카테고리: {category}에 맞는 문제를 생성해줘."
 
 @app.route('/api/generate-question-from-url', methods=['POST'])
 def generate_from_url():
-    # ... (URL 크롤링 및 문제 생성 로직, 생략)
-    pass
+    # URL 크롤링 및 문제 생성 로직 (세부 구현 필요)
+    # ...
+    return jsonify({"success": True, "message": "URL 기반 문제 생성 완료 (구현 예정)"})
 
 @app.route('/api/generate-question', methods=['POST'])
 def generate_question():
-    # ... (기본 AI 문제 생성 로직, 생략)
-    pass
+    # 기본 AI 문제 생성 로직 (세부 구현 필요)
+    # ...
+    return jsonify({"success": True, "message": "AI 문제 생성 완료 (구현 예정)"})
 
 # --- 테스트 및 결과 처리 API ---
 @app.route('/api/get-test', methods=['POST'])
@@ -77,7 +100,6 @@ def get_test():
         if not all_questions:
              return jsonify([{'id': 'temp', 'title': '임시 문제', 'passage': '문제 은행에 문제가 없습니다.', 'type': 'multiple_choice', 'options':['확인'], 'answer':'확인'}])
         
-        # 15개 문항으로 구성
         return jsonify(random.sample(all_questions, min(len(all_questions), 15)))
     except Exception as e:
         return jsonify([]), 500
@@ -97,7 +119,7 @@ def submit_result():
     detailed_feedback = []
 
     for ans in answers:
-        # ... (채점, 시간, 자신감 점수 계산 로직, 생략)
+        # 채점, 시간, 자신감 점수 계산 로직 (세부 구현 필요)
         pass
 
     # 최종 보고서 생성
@@ -106,7 +128,7 @@ def submit_result():
     # 구글 시트 저장
     try:
         if sheet:
-            # ... (상세 데이터 시트 저장 로직, 생략)
+            # 상세 데이터 시트 저장 로직 (세부 구현 필요)
             pass
     except Exception as e:
         print(f"Google Sheets 저장 오류: {e}")
@@ -114,10 +136,46 @@ def submit_result():
     return jsonify({"success": True, "report": report})
 
 # --- 관리자 기능 API ---
-# ... (코드 생성, 코드 목록 조회 등 생략)
+@app.route('/api/generate-code', methods=['POST'])
+def generate_code():
+    if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+    try:
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        code_ref = db.collection('access_codes').document(code)
+        if code_ref.get().exists: return generate_code()
+        code_ref.set({'createdAt': datetime.now(timezone.utc), 'isUsed': False, 'userName': None})
+        return jsonify({"success": True, "code": code})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"코드 생성 오류: {e}"}), 500
+
+@app.route('/api/get-codes', methods=['GET'])
+def get_codes():
+    if not db: return jsonify([]), 500
+    try:
+        codes_ref = db.collection('access_codes').order_by('createdAt', direction=firestore.Query.DESCENDING).stream()
+        codes = []
+        for code in codes_ref:
+            code_data = code.to_dict()
+            code_data['code'] = code.id
+            code_data['createdAt'] = code_data['createdAt'].strftime('%Y-%m-%d %H:%M:%S')
+            codes.append(code_data)
+        return jsonify(codes)
+    except Exception as e:
+        return jsonify([]), 500
+
+@app.route('/api/validate-code', methods=['POST'])
+def validate_code():
+    if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+    code = request.get_json().get('code', '').upper()
+    code_doc = db.collection('access_codes').document(code).get()
+    if not code_doc.exists: return jsonify({"success": False, "message": "유효하지 않은 코드입니다."})
+    if code_doc.to_dict().get('isUsed'): return jsonify({"success": False, "message": "이미 사용된 코드입니다."})
+    return jsonify({"success": True})
+
 
 # --- 4. Flask 앱 실행 ---
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
