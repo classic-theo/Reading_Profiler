@@ -6,8 +6,8 @@
     <title>CSI 독서 프로파일러</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <!-- ✨ Chart.js 라이브러리 추가 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; }
@@ -27,9 +27,11 @@
         .essay-textarea { width: 100%; min-height: 150px; background-color: rgba(17, 24, 39, 0.8); border: 1px solid #4b5563; border-radius: 0.5rem; color: #f9fafb; padding: 0.75rem; resize: vertical; transition: border-color 0.3s; }
         .essay-textarea:focus { outline: none; border-color: #06b6d4; }
         .char-counter { text-align: right; color: #9ca3af; font-size: 0.9em; margin-top: 0.5rem; }
-        /* ✨ prose 스타일 오버라이드 (결과 텍스트용) */
         .prose ul { list-style-type: none; padding-left: 0; }
         .prose li { margin-top: 0.5em; margin-bottom: 0.5em; }
+        /* 자신감 버튼 스타일 */
+        .confidence-btn { background-color: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); transition: all 0.3s ease; padding: 0.5rem 1rem; border-radius: 0.5rem; }
+        .confidence-btn.selected { background-color: #0e7490; border-color: #06b6d4; }
     </style>
 </head>
 <body class="bg-gray-900 text-white bg-cover bg-fixed" style="background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');">
@@ -76,44 +78,52 @@
                 </div>
                 <div id="question-options" class="mt-6"></div>
             </div>
+            <!-- 자신감 선택 UI 추가 -->
+            <div id="confidence-selector" class="mt-8 text-center space-x-2 md:space-x-4 hidden">
+                <span class="text-gray-300 font-bold mr-2">답변에 대한 자신감:</span>
+                <button data-confidence="3" class="confidence-btn">매우 확신해요</button>
+                <button data-confidence="2" class="confidence-btn">조금 헷갈려요</button>
+                <button data-confidence="1" class="confidence-btn">찍었어요</button>
+            </div>
             <div class="mt-10 text-right">
-                <button id="next-btn" class="btn-primary font-bold py-3 px-10 rounded-lg text-lg">다음 단서 &rarr;</button>
+                <button id="next-btn" class="btn-primary font-bold py-3 px-10 rounded-lg text-lg">다음 &rarr;</button>
             </div>
         </div>
 
-        <!-- ✨ Screen 4: Result (결과 화면 구조 변경) -->
+        <!-- Screen 4: Result -->
         <div id="result-screen" class="w-full max-w-5xl card rounded-2xl p-8 fade-in hidden">
-            <div class="text-center mb-8">
-                <h1 class="text-4xl font-orbitron text-cyan-300">최종 분석 보고서</h1>
-                <p id="result-name" class="text-xl text-gray-200 mt-3"></p>
-            </div>
-            
-            <div class="grid lg:grid-cols-5 gap-8">
-                <!-- 왼쪽: 능력치 분석 (그래프) -->
-                <div class="lg:col-span-2">
-                    <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">능력치 분석</h2>
-                    <div class="w-full h-64 md:h-80">
-                        <canvas id="skillChart"></canvas>
+            <div id="result-capture-area" class="bg-gray-800/50 p-6 rounded-xl">
+                <div class="text-center mb-8">
+                    <h1 class="text-4xl font-orbitron text-cyan-300">최종 분석 보고서</h1>
+                    <p id="result-name" class="text-xl text-gray-200 mt-3"></p>
+                </div>
+                
+                <div class="grid lg:grid-cols-5 gap-8">
+                    <div class="lg:col-span-2">
+                        <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">능력치 분석</h2>
+                        <div class="w-full h-64 md:h-80">
+                            <canvas id="skillChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-3">
+                        <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">종합 소견 및 코칭 가이드</h2>
+                        <div id="result-summary" class="prose text-gray-300 max-w-none card p-6 rounded-xl bg-black/20 border border-gray-700 h-full overflow-y-auto"></div>
                     </div>
                 </div>
-                <!-- 오른쪽: 종합 소견 -->
-                <div class="lg:col-span-3">
-                    <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">종합 소견</h2>
-                    <div id="result-summary" class="prose text-gray-300 max-w-none card p-6 rounded-xl bg-black/20 border border-gray-700 h-full"></div>
-                </div>
             </div>
-
-             <div class="mt-8 text-center">
-                <button id="restart-btn" class="btn-primary font-bold py-3 px-10 rounded-lg">새로운 사건 분석</button>
+             <div class="mt-8 flex flex-col md:flex-row gap-4 justify-center">
+                <button id="download-result-btn" class="md:w-auto w-full btn-primary font-bold py-3 px-10 rounded-lg">결과 이미지로 저장</button>
+                <button id="restart-btn" class="md:w-auto w-full btn-primary font-bold py-3 px-10 rounded-lg">새로운 사건 분석</button>
             </div>
         </div>
     </div>
 
     <script>
         const screens = { login: document.getElementById('login-screen'), userInfo: document.getElementById('user-info-screen'), test: document.getElementById('test-screen'), result: document.getElementById('result-screen') };
-        const loginBtn = document.getElementById('login-btn'), startBtn = document.getElementById('start-btn'), nextBtn = document.getElementById('next-btn'), restartBtn = document.getElementById('restart-btn');
+        const loginBtn = document.getElementById('login-btn'), startBtn = document.getElementById('start-btn'), nextBtn = document.getElementById('next-btn'), restartBtn = document.getElementById('restart-btn'), downloadResultBtn = document.getElementById('download-result-btn');
         let state = { userInfo: {}, questions: [], currentQuestionIndex: 0, userAnswers: [] };
-        let skillChartInstance = null; // 차트 인스턴스 변수
+        let skillChartInstance = null;
+        let questionStartTime = null;
 
         const API_BASE_URL = '/api';
 
@@ -200,6 +210,7 @@
         }
         
         function displayQuestion() {
+            questionStartTime = new Date(); // 문제 시작 시간 기록
             const question = state.questions[state.currentQuestionIndex];
             const questionOptions = document.getElementById('question-options');
             
@@ -224,15 +235,16 @@
                 questionOptions.innerHTML = `
                     <div>
                         <textarea id="essay-answer" class="essay-textarea" placeholder="자유롭게 생각을 서술하시오..."></textarea>
-                        <div id="char-counter" class="char-counter">0자</div>
+                        <div id="char-counter" class="char-counter">(0/${question.minChars || 100}자)</div>
                     </div>`;
                 
                 document.getElementById('essay-answer').addEventListener('input', (e) => {
                     const currentLength = e.target.value.length;
-                    document.getElementById('char-counter').textContent = `${currentLength}자`;
+                    document.getElementById('char-counter').textContent = `(${currentLength}/${question.minChars || 100}자)`;
                     updateNextButtonState();
                 });
             }
+            document.getElementById('confidence-selector').classList.add('hidden');
             updateNextButtonState();
         }
 
@@ -245,11 +257,20 @@
                 }
             } else if (question.type === 'essay') {
                 const text = document.getElementById('essay-answer').value;
-                if (text.length >= (question.minChars || 1)) {
+                if (text.length >= (question.minChars || 100)) {
                     isAnswered = true;
                 }
             }
-            nextBtn.disabled = !isAnswered;
+            
+            const confidenceSelector = document.getElementById('confidence-selector');
+            if(isAnswered) {
+                confidenceSelector.classList.remove('hidden');
+            } else {
+                confidenceSelector.classList.add('hidden');
+            }
+
+            const isConfidenceSelected = document.querySelector('.confidence-btn.selected');
+            nextBtn.disabled = !(isAnswered && isConfidenceSelected);
         }
 
         function handleNext() {
@@ -260,7 +281,16 @@
             } else {
                 answer = document.getElementById('essay-answer').value;
             }
-            state.userAnswers.push({ questionId: question.id, answer: answer });
+
+            const confidence = document.querySelector('.confidence-btn.selected').dataset.confidence;
+            const timeTaken = (new Date() - questionStartTime) / 1000; // 초 단위로 시간 측정
+
+            state.userAnswers.push({ 
+                questionId: question.id, 
+                answer: answer,
+                time: timeTaken,
+                confidence: parseInt(confidence)
+            });
 
             state.currentQuestionIndex++;
             if (state.currentQuestionIndex < state.questions.length) {
@@ -273,7 +303,6 @@
             }
         }
         
-        // ✨ 결과 표시 함수 수정
         async function submitAndShowResult() {
             nextBtn.disabled = true;
             nextBtn.textContent = '분석 중...';
@@ -288,26 +317,20 @@
                 if (resultData.success) {
                     switchScreen('result');
                     document.getElementById('result-name').textContent = `${state.userInfo.name} 프로파일러 최종 보고서`;
-                    
-                    // 종합 소견 표시
                     document.getElementById('result-summary').innerHTML = marked.parse(resultData.report.overall_comment);
-
-                    // 차트 그리기
                     drawSkillChart(resultData.report.skill_scores);
-
                 } else {
-                    alert('결과를 분석하는 데 실패했습니다: ' + resultData.error);
+                    alert('결과 분석 실패: ' + resultData.error);
                 }
             } catch (error) {
-                alert('결과를 전송하는 데 실패했습니다.');
+                alert('결과 전송 실패');
             }
         }
 
-        // ✨ 차트 그리는 함수 추가
         function drawSkillChart(skillScores) {
             const skillMap = { 
                 comprehension: '정보 이해력', logic: '논리 분석력', inference: '단서 추론력', 
-                creativity: '창의적 서술력', critical_thinking: '비판적 사고력' 
+                creativity: '창의적 서술력', critical_thinking: '비판적 사고력', speed: '문제 풀이 속도'
             };
             
             const labels = Object.keys(skillScores).map(skill => skillMap[skill] || skill);
@@ -322,30 +345,21 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: '능력치 점수',
-                        data: scores,
+                        label: '능력치 점수', data: scores,
                         backgroundColor: 'rgba(34, 211, 238, 0.2)',
                         borderColor: 'rgba(34, 211, 238, 1)',
-                        borderWidth: 2,
-                        pointBackgroundColor: 'rgba(34, 211, 238, 1)'
+                        borderWidth: 2, pointBackgroundColor: 'rgba(34, 211, 238, 1)'
                     }]
                 },
                 options: {
                     maintainAspectRatio: false,
-                    scales: {
-                        r: {
-                            angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
-                            grid: { color: 'rgba(255, 255, 255, 0.2)' },
-                            pointLabels: { color: '#e5e7eb', font: { size: 12 } },
-                            ticks: {
-                                color: '#9ca3af',
-                                backdropColor: 'rgba(0,0,0,0)',
-                                stepSize: 20
-                            },
-                            min: 0,
-                            max: 100
-                        }
-                    },
+                    scales: { r: {
+                        angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
+                        grid: { color: 'rgba(255, 255, 255, 0.2)' },
+                        pointLabels: { color: '#e5e7eb', font: { size: 12 } },
+                        ticks: { color: '#9ca3af', backdropColor: 'rgba(0,0,0,0)', stepSize: 20 },
+                        min: 0, max: 100
+                    }},
                     plugins: { legend: { display: false } }
                 }
             });
@@ -356,10 +370,30 @@
         startBtn.addEventListener('click', startTest);
         nextBtn.addEventListener('click', handleNext);
         restartBtn.addEventListener('click', () => location.reload());
+        
         document.getElementById('question-options').addEventListener('change', (e) => {
-            if (e.target.type === 'radio') {
+            if (e.target.type === 'radio' || e.target.tagName === 'TEXTAREA') {
                 updateNextButtonState();
             }
+        });
+
+        document.getElementById('confidence-selector').addEventListener('click', (e) => {
+            if (e.target.classList.contains('confidence-btn')) {
+                document.querySelectorAll('.confidence-btn').forEach(btn => btn.classList.remove('selected'));
+                e.target.classList.add('selected');
+                updateNextButtonState();
+            }
+        });
+
+        downloadResultBtn.addEventListener('click', () => {
+            html2canvas(document.getElementById('result-capture-area'), { 
+                backgroundColor: '#1f2937', useCORS: true 
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `${state.userInfo.name}_독서프로파일러_결과.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
         });
 
         // --- Initial Load ---
@@ -368,3 +402,4 @@
     </script>
 </body>
 </html>
+
