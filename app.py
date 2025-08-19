@@ -88,7 +88,6 @@ def call_gemini_api(prompt):
         result_text = result_text.strip()[7:-3]
     return json.loads(result_text)
 
-# ✨ 해결책: URL 기반 문제 생성 기능의 실제 로직 구현
 @app.route('/api/generate-question-from-url', methods=['POST'])
 def generate_from_url():
     data = request.get_json()
@@ -107,12 +106,26 @@ def generate_from_url():
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # 본문 텍스트 추출 (p, article 태그 등)
-        paragraphs = soup.find_all(['p', 'article'])
-        text_content = ' '.join([p.get_text() for p in paragraphs])
+        # ✨ 해결책: 더 똑똑한 본문 추출 로직으로 변경
+        # 1순위: article, main 태그 검색
+        main_content = soup.find('article') or soup.find('main')
         
-        if len(text_content) < 100: # 텍스트가 너무 짧으면 오류 처리
-            return jsonify({"success": False, "message": "URL에서 충분한 텍스트를 추출하지 못했습니다."}), 400
+        text_content = ''
+        if main_content:
+            # 해당 영역의 모든 텍스트를 공백으로 연결
+            text_content = ' '.join(main_content.stripped_strings)
+        
+        # 2순위: 1순위에서 텍스트를 못찾았을 경우, body 전체에서 p 태그 검색
+        if len(text_content) < 200:
+            print("1순위 본문 추출 실패, 2순위로 p 태그를 검색합니다.")
+            paragraphs = soup.find_all('p')
+            text_content = ' '.join([p.get_text(strip=True) for p in paragraphs])
+
+        # 최종 텍스트 정리
+        text_content = ' '.join(text_content.split())
+        
+        if len(text_content) < 200: # 기준을 200자로 상향
+            return jsonify({"success": False, "message": f"URL에서 충분한 텍스트(200자 이상)를 추출하지 못했습니다. (추출된 글자 수: {len(text_content)})"}), 400
         
         # 2. AI 프롬프트 생성
         prompt = f"""
@@ -132,7 +145,7 @@ def generate_from_url():
         5.  **정답 (answer):** 4개의 선택지 중 정답 문장.
         6.  **출력 형식:** 반드시 아래의 JSON 스키마를 준수.
         {{
-          "title": "string", "passage": "{text_content[:500]}...", "type": "multiple_choice",
+          "title": "string", "passage": "{text_content[:500].replace('"', "'")}...", "type": "multiple_choice",
           "options": ["string", "string", "string", "string"], "answer": "string",
           "category": "{category_en}", "targetAge": "{age}"
         }}
@@ -182,6 +195,7 @@ def validate_code():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
