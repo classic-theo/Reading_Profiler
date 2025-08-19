@@ -115,8 +115,54 @@
 
         const API_BASE_URL = '/api';
 
-        async function fetchCodes() { /* (기존과 동일) */ }
-        async function generateNewCode() { /* (기존과 동일) */ }
+        // ✨ 해결책: 누락되었던 코드 관리 기능 JavaScript 복원
+        async function fetchCodes() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-codes`);
+                const codes = await response.json();
+                
+                codeListBody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">생성된 코드가 없습니다.</td></tr>';
+                if (codes.length > 0) {
+                    codeListBody.innerHTML = '';
+                    codes.forEach(code => {
+                        const row = `
+                            <tr class="border-b border-gray-700 hover:bg-gray-700/50">
+                                <td class="p-3 font-orbitron">${code.code}</td>
+                                <td class="p-3 ${code.isUsed ? 'text-green-400' : 'text-red-400'}">${code.isUsed ? '사용됨' : '사용 안 함'}</td>
+                            </tr>
+                        `;
+                        codeListBody.innerHTML += row;
+                    });
+                }
+            } catch (error) {
+                codeListBody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-red-500">목록 로딩 실패</td></tr>';
+            }
+        }
+
+        async function generateNewCode() {
+            generateCodeBtn.disabled = true;
+            generateCodeBtn.textContent = '생성 중...';
+            newCodeDisplay.textContent = '';
+            copyCodeBtn.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate-code`, { method: 'POST' });
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    newCodeDisplay.textContent = data.code;
+                    copyCodeBtn.classList.remove('hidden');
+                    await fetchCodes();
+                } else {
+                    newCodeDisplay.textContent = data.message || '생성 실패';
+                }
+            } catch (error) {
+                newCodeDisplay.textContent = '서버 통신 오류';
+            } finally {
+                generateCodeBtn.disabled = false;
+                generateCodeBtn.textContent = '새 코드 생성';
+            }
+        }
 
         function startAIProgress(message) {
             generateQuestionBtn.disabled = true;
@@ -191,10 +237,32 @@
         generateQuestionBtn.addEventListener('click', generateNewQuestion);
         generateFromUrlBtn.addEventListener('click', generateQuestionFromUrl);
         document.addEventListener('DOMContentLoaded', fetchCodes);
-        copyCodeBtn.addEventListener('click', () => { /* (기존과 동일) */ });
+        
+        copyCodeBtn.addEventListener('click', () => {
+             const codeToCopy = newCodeDisplay.textContent;
+            if (!codeToCopy) return;
+
+            const tempInput = document.createElement('textarea');
+            tempInput.value = codeToCopy;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            const originalIcon = copyCodeBtn.innerHTML;
+            copyCodeBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg text-green-400" viewBox="0 0 16 16">
+                  <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/>
+                </svg>
+            `;
+            setTimeout(() => {
+                copyCodeBtn.innerHTML = originalIcon;
+            }, 1500);
+        });
     </script>
 </body>
 </html>
+
 
 
 
