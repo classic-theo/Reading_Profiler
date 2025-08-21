@@ -203,14 +203,24 @@ def submit_result():
 # --- 관리자 기능 API ---
 @app.route('/api/generate-code', methods=['POST'])
 def generate_code():
-    if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+    print("'/api/generate-code' 엔드포인트가 호출되었습니다.") # 진단용 로그 추가
+    if not db: 
+        print("DB 연결 실패")
+        return jsonify({"success": False, "message": "DB 연결 실패"}), 500
     try:
         code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        print(f"생성된 코드: {code}")
         code_ref = db.collection('access_codes').document(code)
-        if code_ref.get().exists: return generate_code()
+        if code_ref.get().exists: 
+            print("코드 중복, 재생성 시도")
+            return generate_code()
+        
+        print("Firestore에 코드 저장 시도...")
         code_ref.set({'createdAt': datetime.now(timezone.utc), 'isUsed': False, 'userName': None})
+        print("Firestore에 코드 저장 성공")
         return jsonify({"success": True, "code": code})
     except Exception as e:
+        print(f"코드 생성 중 심각한 오류 발생: {e}")
         return jsonify({"success": False, "message": f"코드 생성 오류: {e}"}), 500
 
 @app.route('/api/get-codes', methods=['GET'])
@@ -242,3 +252,4 @@ def validate_code():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
+
