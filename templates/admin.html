@@ -66,13 +66,16 @@
                             </select>
                         </div>
                         <div>
-                            <label for="category-select" class="block mb-2 text-sm font-medium text-gray-300">측정 능력</label>
+                            <label for="category-select" class="block mb-2 text-sm font-medium text-gray-300">문제 유형</label>
                             <select id="category-select" class="form-select w-full rounded-lg p-2.5">
-                                <option value="comprehension" selected>정보 이해력</option>
-                                <option value="logic">논리 분석력</option>
-                                <option value="inference">단서 추론력</option>
+                                <option value="title" selected>제목 찾기</option>
+                                <option value="theme">주제 파악</option>
+                                <option value="argument">주장 파악</option>
+                                <option value="inference">의미 추론</option>
+                                <option value="reference">지시어 찾기</option>
+                                <option value="sentence_ordering">문장 순서 맞추기</option>
+                                <option value="paragraph_ordering">단락 순서 맞추기</option>
                                 <option value="creativity">창의적 서술력</option>
-                                <option value="critical_thinking">비판적 사고력</option>
                             </select>
                         </div>
                         <button id="generate-question-btn" class="w-full btn-primary font-bold py-3 rounded-lg">AI에게 문제 생성 요청</button>
@@ -99,11 +102,14 @@
                         <div>
                             <label for="text-category-select" class="block mb-2 text-sm font-medium text-gray-300">측정 능력</label>
                             <select id="text-category-select" class="form-select w-full rounded-lg p-2.5">
-                                <option value="comprehension" selected>정보 이해력</option>
-                                <option value="logic">논리 분석력</option>
-                                <option value="inference">단서 추론력</option>
+                                <option value="title" selected>제목 찾기</option>
+                                <option value="theme">주제 파악</option>
+                                <option value="argument">주장 파악</option>
+                                <option value="inference">의미 추론</option>
+                                <option value="reference">지시어 찾기</option>
+                                <option value="sentence_ordering">문장 순서 맞추기</option>
+                                <option value="paragraph_ordering">단락 순서 맞추기</option>
                                 <option value="creativity">창의적 서술력</option>
-                                <option value="critical_thinking">비판적 사고력</option>
                             </select>
                         </div>
                         <textarea id="text-input" class="form-textarea w-full rounded-lg p-2.5 h-48" placeholder="이곳에 기사나 지문 내용을 붙여넣으세요..."></textarea>
@@ -271,8 +277,9 @@
         generateQuestionBtn.addEventListener('click', generateNewQuestion);
         generateFromTextBtn.addEventListener('click', generateQuestionFromText);
         document.addEventListener('DOMContentLoaded', fetchCodes);
+        
         copyCodeBtn.addEventListener('click', () => {
-            const codeToCopy = newCodeDisplay.textContent;
+             const codeToCopy = newCodeDisplay.textContent;
             if (!codeToCopy) return;
 
             const tempInput = document.createElement('textarea');
@@ -295,11 +302,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
