@@ -79,7 +79,6 @@
                 </div>
                 <div id="question-options" class="mt-6"></div>
             </div>
-            <!-- 자신감 선택 UI 추가 -->
             <div id="confidence-selector" class="mt-8 text-center space-x-2 md:space-x-4 hidden">
                 <span class="text-gray-300 font-bold mr-2">답변에 대한 자신감:</span>
                 <button data-confidence="3" class="confidence-btn">매우 확신해요</button>
@@ -211,7 +210,7 @@
         }
         
         function displayQuestion() {
-            questionStartTime = new Date(); // 문제 시작 시간 기록
+            questionStartTime = new Date();
             const question = state.questions[state.currentQuestionIndex];
             const questionOptions = document.getElementById('question-options');
             
@@ -286,7 +285,7 @@
             }
 
             const confidence = document.querySelector('.confidence-btn.selected').dataset.confidence;
-            const timeTaken = (new Date() - questionStartTime) / 1000; // 초 단위로 시간 측정
+            const timeTaken = (new Date() - questionStartTime) / 1000;
 
             state.userAnswers.push({ 
                 questionId: question.id, 
@@ -332,8 +331,8 @@
 
         function drawSkillChart(skillScores) {
             const skillMap = { 
-                comprehension: '정보 이해력', logic: '논리 분석력', inference: '단서 추론력', 
-                creativity: '창의적 서술력', critical_thinking: '비판적 사고력', speed: '문제 풀이 속도'
+                "정보 이해력": "정보 이해력", "논리 분석력": "논리 분석력", "단서 추론력": "단서 추론력", 
+                "창의적 서술력": "창의적 서술력", "비판적 사고력": "비판적 사고력", "문제 풀이 속도": "문제 풀이 속도"
             };
             
             const labels = Object.keys(skillScores).map(skill => skillMap[skill] || skill);
@@ -405,5 +404,6 @@
     </script>
 </body>
 </html>
+
 
 
