@@ -144,11 +144,62 @@ def validate_code():
     if code_doc.to_dict().get('isUsed'): return jsonify({"success": False, "message": "이미 사용된 코드입니다."})
     return jsonify({"success": True})
 
-# (이하 /api/generate-question, /api/get-test, /api/submit-result 등 모든 API 구현부는 이전 최종본과 동일하게 포함)
 @app.route('/api/get-test', methods=['POST'])
 def get_test():
-    # ... (이전과 동일) ...
-    return jsonify([])
+    if not db:
+        return jsonify([]), 500
+
+    data = request.get_json()
+    age_str = data.get('age', '0')
+    
+    try:
+        age = int(age_str)
+    except (ValueError, TypeError):
+        age = 0 # Handle cases where age is not a valid number
+
+    # Map user age to age group for querying
+    age_group = "10-13" # default
+    if 14 <= age <= 16:
+        age_group = "14-16"
+    elif 17 <= age <= 19:
+        age_group = "17-19"
+
+    # Standardized test structure (15 questions total)
+    test_structure = {
+        "title": 2, "theme": 1,             # 정보 이해력 (3)
+        "argument": 3,                      # 비판적 사고력 (3)
+        "inference": 2, "pronoun": 2,       # 단서 추론력 (4)
+        "sentence_ordering": 2, "paragraph_ordering": 1, # 논리 분석력 (3)
+        "essay": 1                          # 창의적 서술력 (1)
+    }
+
+    questions = []
+    try:
+        for category, count in test_structure.items():
+            docs = db.collection('questions').where('targetAge', '==', age_group).where('category', '==', category).get()
+            
+            potential_questions = []
+            for doc in docs:
+                q_data = doc.to_dict()
+                q_data['id'] = doc.id
+                potential_questions.append(q_data)
+
+            num_to_select = min(count, len(potential_questions))
+            if num_to_select > 0:
+                selected = random.sample(potential_questions, num_to_select)
+                questions.extend(selected)
+
+        for q in questions:
+             q['category_kr'] = CATEGORY_MAP.get(q.get('category'), '기타')
+
+        random.shuffle(questions)
+
+        print(f"문제 생성 완료: {len(questions)}개 문항 ({age_group} 대상)")
+        return jsonify(questions)
+
+    except Exception as e:
+        print(f"'/api/get-test' 오류: {e}")
+        return jsonify([]), 500
 
 @app.route('/api/submit-result', methods=['POST'])
 def submit_result():
@@ -159,6 +210,8 @@ def submit_result():
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+
 
 
 
