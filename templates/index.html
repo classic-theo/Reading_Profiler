@@ -5,34 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CSI 독서 프로파일러</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; }
         .font-orbitron { font-family: 'Orbitron', sans-serif; }
-        .card { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .btn-primary { background: linear-gradient(145deg, #0e7490, #164e63); color: white; box-shadow: 0 4px 15px rgba(14, 116, 144, 0.3); transition: all 0.3s ease; }
-        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 116, 144, 0.4); }
-        .btn-primary:disabled { background: #4b5563; cursor: not-allowed; transform: translateY(0); box-shadow: none; }
+        .card { background: rgba(17, 24, 39, 0.6); backdrop-filter: blur(12px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .btn-primary { background: linear-gradient(145deg, #0e7490, #164e63); }
         .fade-in { animation: fadeIn 0.7s ease-in-out forwards; }
-        .fade-out { animation: fadeOut 0.5s ease-in-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
         .progress-bar-fill { background: linear-gradient(90deg, #0891b2, #22d3ee); }
-        .glowing-border { box-shadow: 0 0 5px rgba(34, 211, 238, 0.5), 0 0 10px rgba(34, 211, 238, 0.3); }
         .option-label { transition: all 0.2s ease-in-out; }
-        .peer:checked + .option-label { background-color: rgba(8, 145, 178, 0.3); border-color: #06b6d4; transform: scale(1.02); }
-        .essay-textarea { width: 100%; min-height: 150px; background-color: rgba(17, 24, 39, 0.8); border: 1px solid #4b5563; border-radius: 0.5rem; color: #f9fafb; padding: 0.75rem; resize: vertical; transition: border-color 0.3s; }
-        .essay-textarea:focus { outline: none; border-color: #06b6d4; }
-        .char-counter { text-align: right; color: #9ca3af; font-size: 0.9em; margin-top: 0.5rem; }
-        .prose ul { list-style-type: none; padding-left: 0; }
-        .prose li { margin-top: 0.5em; margin-bottom: 0.5em; }
-        .prose h3 { color: #67e8f9; margin-top: 1.5rem; border-bottom: 1px solid #0e7490; padding-bottom: 0.25rem; }
+        .peer:checked + .option-label { background-color: rgba(8, 145, 178, 0.3); border-color: #06b6d4; }
         /* 자신감 버튼 스타일 */
-        .confidence-btn { background-color: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); transition: all 0.3s ease; padding: 0.5rem 1rem; border-radius: 0.5rem; }
-        .confidence-btn.selected { background-color: #0e7490; border-color: #06b6d4; }
+        .confidence-btn { transition: all 0.2s; }
+        .confidence-btn.selected { background-color: #0e7490; border-color: #06b6d4; transform: scale(1.05); }
+        /* 결과 화면 prose 스타일 */
+        .prose h2 { font-size: 1.5rem; color: #a5f3fc; margin-top: 1.5rem; }
+        .prose h3 { font-size: 1.25rem; color: #67e8f9; margin-top: 1.5rem; border-bottom: 1px solid #0e7490; padding-bottom: 0.25rem;}
+        .prose ul { list-style-position: inside; }
+        .prose li { margin-bottom: 0.5rem; }
+        .prose strong { color: #f0f9ff; }
     </style>
 </head>
 <body class="bg-gray-900 text-white bg-cover bg-fixed" style="background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');">
@@ -41,369 +36,271 @@
 
         <!-- Screen 1: Access Code -->
         <div id="login-screen" class="w-full max-w-md card rounded-2xl p-8 space-y-6 fade-in">
-            <div class="text-center">
-                <h1 class="text-3xl font-orbitron text-cyan-400">CSI: Reading Profiler</h1>
-                <p class="text-gray-300 mt-2">사건 파일 접근을 위해 코드를 입력하십시오.</p>
-            </div>
-            <input id="access-code-input" type="text" placeholder="ACCESS CODE" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-center text-lg tracking-widest focus:ring-2 focus:ring-cyan-500 focus:outline-none glowing-border">
+            <h1 class="text-3xl font-orbitron text-cyan-400 text-center">CSI: Reading Profiler</h1>
+            <input id="access-code-input" type="text" placeholder="ACCESS CODE" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-center text-lg tracking-widest">
             <button id="login-btn" class="w-full btn-primary font-bold py-3 rounded-lg">접근 허가 요청</button>
             <p id="login-error" class="text-red-400 text-center h-4"></p>
         </div>
 
         <!-- Screen 2: User Info -->
         <div id="user-info-screen" class="w-full max-w-md card rounded-2xl p-8 space-y-6 fade-in hidden">
-            <div class="text-center">
-                <h1 class="text-2xl font-bold text-cyan-400">프로파일러 정보 등록</h1>
-                <p class="text-gray-300 mt-2">정확한 분석을 위해 정보를 입력해주십시오.</p>
-            </div>
-            <input id="name-input" type="text" placeholder="이름 (Name)" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none">
-            <input id="age-input" type="number" placeholder="나이 (Age)" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none">
+            <h1 class="text-2xl font-bold text-cyan-400 text-center">프로파일러 정보 등록</h1>
+            <input id="name-input" type="text" placeholder="이름 (Name)" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3">
+            <input id="age-input" type="number" placeholder="나이 (Age)" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3">
             <button id="start-btn" class="w-full btn-primary font-bold py-3 rounded-lg">분석 시작</button>
         </div>
 
         <!-- Screen 3: Test -->
         <div id="test-screen" class="w-full max-w-4xl card rounded-2xl p-8 md:p-12 fade-in hidden">
+            <!-- 진행도 바 -->
             <div class="mb-8">
                 <div class="flex justify-between items-center mb-2 text-gray-300">
-                    <span class="font-bold text-lg">사건 파일 분석 진행도</span>
+                    <span id="progress-category" class="font-bold text-lg"></span>
                     <span id="progress-text" class="font-orbitron text-lg"></span>
                 </div>
-                <div class="w-full bg-gray-700 rounded-full h-3">
-                    <div id="progress-bar" class="progress-bar-fill h-3 rounded-full transition-all duration-500"></div>
-                </div>
+                <div class="w-full bg-gray-700 rounded-full h-3"><div id="progress-bar" class="progress-bar-fill h-3 rounded-full transition-all duration-500"></div></div>
             </div>
+            <!-- 문제 컨테이너 -->
             <div id="question-container" class="transition-opacity duration-500">
                 <div class="bg-black/20 p-6 rounded-lg border border-gray-700">
                     <h2 id="question-title" class="text-2xl font-bold text-cyan-300 mb-4"></h2>
+                    <p id="question-text" class="text-lg text-gray-100 mb-4"></p>
                     <div id="question-passage" class="text-gray-200 mb-6 leading-relaxed max-h-60 overflow-y-auto pr-3 border-l-2 border-cyan-700 pl-4"></div>
                 </div>
-                <div id="question-options" class="mt-6"></div>
+                <div id="question-options" class="grid md:grid-cols-2 gap-4 mt-6"></div>
+                <!-- 서술형 답변 -->
+                <div id="essay-container" class="mt-6 hidden">
+                    <textarea id="essay-answer" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-4" rows="6" placeholder="최소 100자 이상 생각을 서술하시오..."></textarea>
+                    <p id="char-counter" class="text-right text-gray-400 mt-2">0 / 100자</p>
+                </div>
             </div>
-            <div id="confidence-selector" class="mt-8 text-center space-x-2 md:space-x-4 hidden">
-                <span class="text-gray-300 font-bold mr-2">답변에 대한 자신감:</span>
-                <button data-confidence="3" class="confidence-btn">매우 확신해요</button>
-                <button data-confidence="2" class="confidence-btn">조금 헷갈려요</button>
-                <button data-confidence="1" class="confidence-btn">찍었어요</button>
+             <!-- 자신감 선택 -->
+            <div id="confidence-container" class="mt-8">
+                <p class="text-center text-cyan-200 mb-3">이 답변에 대해 얼마나 확신하나요?</p>
+                <div class="flex justify-center gap-4">
+                    <button class="confidence-btn bg-gray-700 border border-gray-600 rounded-full px-5 py-2" data-value="confident">매우 확신해요</button>
+                    <button class="confidence-btn bg-gray-700 border border-gray-600 rounded-full px-5 py-2" data-value="unsure">조금 헷갈려요</button>
+                    <button class="confidence-btn bg-gray-700 border border-gray-600 rounded-full px-5 py-2" data-value="guessed">찍었어요</button>
+                </div>
             </div>
-            <div class="mt-10 text-right">
-                <button id="next-btn" class="btn-primary font-bold py-3 px-10 rounded-lg text-lg">다음 &rarr;</button>
-            </div>
+            <div class="mt-10 text-right"><button id="next-btn" class="btn-primary font-bold py-3 px-10 rounded-lg text-lg">다음 &rarr;</button></div>
         </div>
 
         <!-- Screen 4: Result -->
         <div id="result-screen" class="w-full max-w-5xl card rounded-2xl p-8 fade-in hidden">
-            <div id="result-capture-area" class="bg-gray-800/50 p-6 rounded-xl">
-                <div class="text-center mb-8">
-                    <h1 class="text-4xl font-orbitron text-cyan-300">최종 분석 보고서</h1>
-                    <p id="result-name" class="text-xl text-gray-200 mt-3"></p>
-                </div>
-                
-                <div class="grid lg:grid-cols-5 gap-8">
-                    <div class="lg:col-span-2">
-                        <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">능력치 분석</h2>
-                        <div class="w-full h-64 md:h-80">
-                            <canvas id="skillChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="lg:col-span-3">
-                        <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">종합 소견 및 코칭 가이드</h2>
-                        <div id="result-summary" class="prose text-gray-300 max-w-none card p-6 rounded-xl bg-black/20 border border-gray-700 h-full overflow-y-auto"></div>
-                    </div>
-                </div>
-            </div>
-             <div class="mt-8 flex flex-col md:flex-row gap-4 justify-center">
-                <button id="download-result-btn" class="md:w-auto w-full btn-primary font-bold py-3 px-10 rounded-lg">결과 이미지로 저장</button>
-                <button id="restart-btn" class="md:w-auto w-full btn-primary font-bold py-3 px-10 rounded-lg">새로운 사건 분석</button>
-            </div>
+             <div id="result-capture-area" class="bg-gray-900/50 p-6 rounded-xl">
+                 <div class="text-center mb-8">
+                     <h1 class="text-4xl font-orbitron text-cyan-300">최종 분석 보고서</h1>
+                     <p id="result-name" class="text-xl text-gray-200 mt-3"></p>
+                 </div>
+                 <div class="grid lg:grid-cols-5 gap-8">
+                     <div class="lg:col-span-2">
+                         <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">능력치 분석</h2>
+                         <div class="w-full h-64 md:h-80"><canvas id="skillChart"></canvas></div>
+                     </div>
+                     <div class="lg:col-span-3">
+                         <h2 class="text-2xl font-bold text-cyan-400 mb-4 text-center">종합 소견 및 코칭 가이드</h2>
+                         <div id="coaching-guide" class="prose text-gray-300 max-w-none card p-6 rounded-xl max-h-[20rem] overflow-y-auto"></div>
+                     </div>
+                 </div>
+             </div>
+             <div class="mt-8 flex flex-col md:flex-row gap-4">
+                 <button id="share-image-btn" class="w-full bg-gray-700 hover:bg-gray-600 font-bold py-3 rounded-lg">결과 이미지로 저장</button>
+                 <button id="restart-btn" class="w-full btn-primary font-bold py-3 rounded-lg">새로운 사건 분석</button>
+             </div>
         </div>
+
     </div>
 
     <script>
-        const screens = { login: document.getElementById('login-screen'), userInfo: document.getElementById('user-info-screen'), test: document.getElementById('test-screen'), result: document.getElementById('result-screen') };
-        const loginBtn = document.getElementById('login-btn'), startBtn = document.getElementById('start-btn'), nextBtn = document.getElementById('next-btn'), restartBtn = document.getElementById('restart-btn'), downloadResultBtn = document.getElementById('download-result-btn');
-        let state = { userInfo: {}, questions: [], currentQuestionIndex: 0, userAnswers: [] };
-        let skillChartInstance = null;
-        let questionStartTime = null;
+    // --- DOM Elements & State ---
+    const screens = { login: document.getElementById('login-screen'), userInfo: document.getElementById('user-info-screen'), test: document.getElementById('test-screen'), result: document.getElementById('result-screen') };
+    let userInfo = {}, questions = [], currentQuestionIndex = 0, userResults = [];
+    let questionStartTime;
 
-        const API_BASE_URL = '/api';
+    // --- Screen Control ---
+    function switchScreen(screenName) {
+        Object.values(screens).forEach(s => s.classList.add('hidden'));
+        screens[screenName].classList.remove('hidden');
+    }
 
-        function switchScreen(screenName) {
-            const currentScreen = Object.values(screens).find(s => !s.classList.contains('hidden'));
-            if (currentScreen) {
-                currentScreen.classList.add('fade-out');
-                setTimeout(() => {
-                    currentScreen.classList.add('hidden');
-                    currentScreen.classList.remove('fade-out');
-                    if (screens[screenName]) { 
-                        screens[screenName].classList.remove('hidden');
-                        screens[screenName].classList.add('fade-in'); 
-                    }
-                }, 500);
-            } else {
-                if (screens[screenName]) { 
-                    screens[screenName].classList.remove('hidden');
-                    screens[screenName].classList.add('fade-in');
-                }
-            }
+    // --- Event Listeners ---
+    document.getElementById('login-btn').addEventListener('click', async () => {
+        const accessCode = document.getElementById('access-code-input').value;
+        const response = await fetch('/api/validate-code', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ code: accessCode })
+        });
+        const data = await response.json();
+        if (data.success) {
+            userInfo.accessCode = accessCode;
+            switchScreen('userInfo');
+        } else {
+            document.getElementById('login-error').textContent = data.message;
         }
+    });
 
-        async function handleLogin() {
-            const codeInput = document.getElementById('access-code-input');
-            const errorEl = document.getElementById('login-error');
-            errorEl.textContent = '';
-            loginBtn.disabled = true;
-            loginBtn.textContent = '확인 중...';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/validate-code`, { 
-                    method: 'POST', 
-                    headers: {'Content-Type': 'application/json'}, 
-                    body: JSON.stringify({ code: codeInput.value.toUpperCase() }) 
-                });
-                const data = await response.json();
-                if (data.success) {
-                    state.userInfo.accessCode = codeInput.value.toUpperCase();
-                    switchScreen('userInfo');
-                } else {
-                    errorEl.textContent = data.message || '접근에 실패했습니다.';
-                }
-            } catch (error) {
-                errorEl.textContent = '서버와 통신할 수 없습니다.';
-            } finally {
-                loginBtn.disabled = false;
-                loginBtn.textContent = '접근 허가 요청';
-            }
-        }
-
-        async function startTest() {
-            const name = document.getElementById('name-input').value.trim();
-            const age = document.getElementById('age-input').value.trim();
-            if (!name || !age) {
-                alert('이름과 나이를 모두 입력해주세요.');
-                return;
-            }
-            state.userInfo.name = name;
-            state.userInfo.age = age;
-            
-            startBtn.disabled = true;
-            startBtn.textContent = '사건 파일 구성 중...';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/get-test`, { 
-                    method: 'POST', 
-                    headers: {'Content-Type': 'application/json'}, 
-                    body: JSON.stringify({ age: state.userInfo.age }) 
-                });
-                state.questions = await response.json();
-                
-                state.currentQuestionIndex = 0;
-                state.userAnswers = [];
-                
-                switchScreen('test');
-                displayQuestion();
-            } catch (error) {
-                alert('시험지를 불러오는 데 실패했습니다.');
-            } finally {
-                startBtn.disabled = false;
-                startBtn.textContent = '분석 시작';
-            }
-        }
+    document.getElementById('start-btn').addEventListener('click', async () => {
+        userInfo.name = document.getElementById('name-input').value;
+        userInfo.age = document.getElementById('age-input').value;
+        if (!userInfo.name || !userInfo.age) { alert('정보를 모두 입력해주세요.'); return; }
         
-        function displayQuestion() {
-            questionStartTime = new Date();
-            const question = state.questions[state.currentQuestionIndex];
-            const questionOptions = document.getElementById('question-options');
-            
-            document.getElementById('progress-text').textContent = `${state.currentQuestionIndex + 1} / ${state.questions.length}`;
-            document.getElementById('progress-bar').style.width = `${((state.currentQuestionIndex + 1) / state.questions.length) * 100}%`;
-            document.getElementById('question-title').textContent = question.title;
-            document.getElementById('question-passage').innerHTML = question.passage ? question.passage.replace(/\n/g, '<br>') : '';
-            questionOptions.innerHTML = '';
+        const response = await fetch('/api/get-test', { method: 'POST' });
+        questions = await response.json();
+        if (questions.length > 0) {
+            switchScreen('test');
+            displayQuestion();
+        } else {
+            alert('시험지를 불러오는 데 실패했습니다.');
+        }
+    });
 
-            if (question.type === 'multiple_choice') {
-                questionOptions.classList.add('grid', 'md:grid-cols-2', 'gap-4');
-                question.options.forEach((optionText, index) => {
-                    const optionId = `q${state.currentQuestionIndex}_${index}`;
-                    questionOptions.innerHTML += `
-                        <div>
-                            <input type="radio" id="${optionId}" name="q${state.currentQuestionIndex}" value="${optionText}" class="hidden peer">
-                            <label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50">${optionText}</label>
-                        </div>`;
-                });
-            } else if (question.type === 'essay') {
-                questionOptions.classList.remove('grid', 'md:grid-cols-2', 'gap-4');
-                questionOptions.innerHTML = `
+    document.getElementById('next-btn').addEventListener('click', () => {
+        // 1. Collect Answer
+        const question = questions[currentQuestionIndex];
+        let answer = '';
+        if (question.type === 'essay') {
+            answer = document.getElementById('essay-answer').value;
+            if (answer.length < 100) { alert('최소 100자 이상 입력해야 합니다.'); return; }
+        } else {
+            const selectedOption = document.querySelector(`input[name="q${currentQuestionIndex}"]:checked`);
+            if (!selectedOption) { alert('답을 선택해주세요.'); return; }
+            answer = selectedOption.value;
+        }
+
+        // 2. Collect Confidence
+        const selectedConfidence = document.querySelector('.confidence-btn.selected');
+        if (!selectedConfidence) { alert('답변에 대한 확신 정도를 선택해주세요.'); return; }
+        const confidence = selectedConfidence.dataset.value;
+
+        // 3. Store Result
+        userResults.push({
+            question: question,
+            answer: answer,
+            time: Math.round((new Date() - questionStartTime) / 1000),
+            confidence: confidence
+        });
+        
+        // 4. Move to Next
+        currentQuestionIndex++;
+        if (currentQuestionIndex < questions.length) {
+            displayQuestion();
+        } else {
+            showResult();
+        }
+    });
+    
+    document.querySelectorAll('.confidence-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.confidence-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        });
+    });
+
+    document.getElementById('essay-answer')?.addEventListener('input', (e) => {
+        const count = e.target.value.length;
+        document.getElementById('char-counter').textContent = `${count} / 100자`;
+    });
+    
+    document.getElementById('share-image-btn').addEventListener('click', () => {
+        html2canvas(document.getElementById('result-capture-area'), { backgroundColor: '#111827' }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `${userInfo.name}_독서프로파일러_결과.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    });
+
+    document.getElementById('restart-btn').addEventListener('click', () => location.reload());
+
+    // --- Core Functions ---
+    function displayQuestion() {
+        questionStartTime = new Date();
+        const q = questions[currentQuestionIndex];
+        
+        // Update progress
+        document.getElementById('progress-text').textContent = `${currentQuestionIndex + 1} / ${questions.length}`;
+        document.getElementById('progress-bar').style.width = `${((currentQuestionIndex + 1) / questions.length) * 100}%`;
+        document.getElementById('progress-category').textContent = `[${q.category_kr}]`;
+        
+        // Update question content
+        document.getElementById('question-title').textContent = q.title;
+        document.getElementById('question-text').textContent = q.question; // Display the question
+        document.getElementById('question-passage').innerHTML = q.passage ? q.passage.replace(/\n/g, '<br>') : '';
+
+        // Reset and display options/essay
+        const optionsContainer = document.getElementById('question-options');
+        const essayContainer = document.getElementById('essay-container');
+        optionsContainer.innerHTML = '';
+        essayContainer.classList.add('hidden');
+
+        if (q.type === 'essay') {
+            essayContainer.classList.remove('hidden');
+            document.getElementById('essay-answer').value = '';
+            document.getElementById('char-counter').textContent = '0 / 100자';
+        } else {
+            q.options.forEach((option, index) => {
+                const optionId = `q${currentQuestionIndex}_${index}`;
+                optionsContainer.innerHTML += `
                     <div>
-                        <textarea id="essay-answer" class="essay-textarea" placeholder="자유롭게 생각을 서술하시오..."></textarea>
-                        <div id="char-counter" class="char-counter">(0/${question.minChars || 100}자)</div>
+                        <input type="radio" id="${optionId}" name="q${currentQuestionIndex}" value="${option}" class="hidden peer">
+                        <label for="${optionId}" class="option-label block p-4 border border-gray-600 rounded-lg cursor-pointer">${option}</label>
                     </div>`;
-                
-                document.getElementById('essay-answer').addEventListener('input', (e) => {
-                    const currentLength = e.target.value.length;
-                    document.getElementById('char-counter').textContent = `(${currentLength}/${question.minChars || 100}자)`;
-                    updateNextButtonState();
-                });
-            }
-            
-            document.querySelectorAll('.confidence-btn').forEach(btn => btn.classList.remove('selected'));
-            document.getElementById('confidence-selector').classList.add('hidden');
-            updateNextButtonState();
-        }
-
-        function updateNextButtonState() {
-            const question = state.questions[state.currentQuestionIndex];
-            let isAnswered = false;
-            if (question.type === 'multiple_choice') {
-                if (document.querySelector(`input[name="q${state.currentQuestionIndex}"]:checked`)) {
-                    isAnswered = true;
-                }
-            } else if (question.type === 'essay') {
-                const text = document.getElementById('essay-answer').value;
-                if (text.length >= (question.minChars || 100)) {
-                    isAnswered = true;
-                }
-            }
-            
-            const confidenceSelector = document.getElementById('confidence-selector');
-            if(isAnswered) {
-                confidenceSelector.classList.remove('hidden');
-            } else {
-                confidenceSelector.classList.add('hidden');
-            }
-
-            const isConfidenceSelected = document.querySelector('.confidence-btn.selected');
-            nextBtn.disabled = !(isAnswered && isConfidenceSelected);
-        }
-
-        function handleNext() {
-            const question = state.questions[state.currentQuestionIndex];
-            let answer;
-            if (question.type === 'multiple_choice') {
-                answer = document.querySelector(`input[name="q${state.currentQuestionIndex}"]:checked`).value;
-            } else {
-                answer = document.getElementById('essay-answer').value;
-            }
-
-            const confidence = document.querySelector('.confidence-btn.selected').dataset.confidence;
-            const timeTaken = (new Date() - questionStartTime) / 1000;
-
-            state.userAnswers.push({ 
-                questionId: question.id, 
-                answer: answer,
-                time: timeTaken,
-                confidence: parseInt(confidence)
             });
-
-            state.currentQuestionIndex++;
-            if (state.currentQuestionIndex < state.questions.length) {
-                displayQuestion();
-                if (state.currentQuestionIndex === state.questions.length - 1) {
-                    nextBtn.innerHTML = '결과 분석 요청 &rarr;';
-                }
-            } else {
-                submitAndShowResult();
-            }
         }
         
-        async function submitAndShowResult() {
-            nextBtn.disabled = true;
-            nextBtn.textContent = '분석 중...';
+        // Reset confidence buttons
+        document.querySelectorAll('.confidence-btn').forEach(b => b.classList.remove('selected'));
+    }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/submit-result`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ userInfo: state.userInfo, answers: state.userAnswers })
-                });
-                const resultData = await response.json();
-                if (resultData.success) {
-                    switchScreen('result');
-                    document.getElementById('result-name').textContent = `${state.userInfo.name} 프로파일러 최종 보고서`;
-                    document.getElementById('result-summary').innerHTML = marked.parse(resultData.report.overall_comment);
-                    drawSkillChart(resultData.report.skill_scores);
-                } else {
-                    alert('결과 분석 실패: ' + resultData.error);
-                }
-            } catch (error) {
-                alert('결과 전송 실패');
-            }
-        }
-
-        function drawSkillChart(skillScores) {
-            const skillMap = { 
-                "정보 이해력": "정보 이해력", "논리 분석력": "논리 분석력", "단서 추론력": "단서 추론력", 
-                "창의적 서술력": "창의적 서술력", "비판적 사고력": "비판적 사고력", "문제 풀이 속도": "문제 풀이 속도"
-            };
-            
-            const labels = Object.keys(skillScores).map(skill => skillMap[skill] || skill);
-            const scores = Object.values(skillScores);
-
-            const chartCanvas = document.getElementById('skillChart').getContext('2d');
-            if (skillChartInstance) {
-                skillChartInstance.destroy();
-            }
-            skillChartInstance = new Chart(chartCanvas, {
-                type: 'radar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: '능력치 점수', data: scores,
-                        backgroundColor: 'rgba(34, 211, 238, 0.2)',
-                        borderColor: 'rgba(34, 211, 238, 1)',
-                        borderWidth: 2, pointBackgroundColor: 'rgba(34, 211, 238, 1)'
-                    }]
-                },
-                options: {
-                    maintainAspectRatio: false,
-                    scales: { r: {
-                        angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
-                        grid: { color: 'rgba(255, 255, 255, 0.2)' },
-                        pointLabels: { color: '#e5e7eb', font: { size: 12 } },
-                        ticks: { color: '#9ca3af', backdropColor: 'rgba(0,0,0,0)', stepSize: 20 },
-                        min: 0, max: 100
-                    }},
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
-
-        // --- Event Listeners ---
-        loginBtn.addEventListener('click', handleLogin);
-        startBtn.addEventListener('click', startTest);
-        nextBtn.addEventListener('click', handleNext);
-        restartBtn.addEventListener('click', () => location.reload());
+    async function showResult() {
+        switchScreen('result');
+        document.getElementById('coaching-guide').innerHTML = '<p>분석 중입니다... 잠시만 기다려주세요.</p>';
         
-        document.getElementById('question-options').addEventListener('change', (e) => {
-            if (e.target.type === 'radio' || e.target.tagName === 'TEXTAREA') {
-                updateNextButtonState();
+        const response = await fetch('/api/submit-result', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ userInfo: userInfo, results: userResults })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            displayResult(data.analysis, data.overall_comment);
+        } else {
+            document.getElementById('coaching-guide').innerHTML = '<p>결과를 분석하는 데 실패했습니다.</p>';
+        }
+    }
+    
+    function displayResult(analysisData, comment) {
+        document.getElementById('result-name').textContent = `${userInfo.name} 프로파일러 최종 보고서`;
+        document.getElementById('coaching-guide').innerHTML = marked.parse(comment);
+
+        const ctx = document.getElementById('skillChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: Object.keys(analysisData),
+                datasets: [{
+                    label: '능력치 점수',
+                    data: Object.values(analysisData),
+                    backgroundColor: 'rgba(34, 211, 238, 0.2)',
+                    borderColor: 'rgba(34, 211, 238, 1)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                scales: { r: { angleLines: { color: 'rgba(255, 255, 255, 0.2)' }, grid: { color: 'rgba(255, 255, 255, 0.2)' }, pointLabels: { color: '#e5e7eb' }, ticks: { color: '#9ca3af', backdropColor: 'transparent' }, min: 0, max: 100 } },
+                plugins: { legend: { display: false } }
             }
         });
+    }
 
-        document.getElementById('confidence-selector').addEventListener('click', (e) => {
-            if (e.target.classList.contains('confidence-btn')) {
-                document.querySelectorAll('.confidence-btn').forEach(btn => btn.classList.remove('selected'));
-                e.target.classList.add('selected');
-                updateNextButtonState();
-            }
-        });
-
-        downloadResultBtn.addEventListener('click', () => {
-            html2canvas(document.getElementById('result-capture-area'), { 
-                backgroundColor: '#1f2937', useCORS: true 
-            }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = `${state.userInfo.name}_독서프로파일러_결과.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-            });
-        });
-
-        // --- Initial Load ---
-        switchScreen('login');
-        nextBtn.disabled = true;
+    // --- Initial Load ---
+    switchScreen('login');
     </script>
 </body>
 </html>
+
 
 
 
