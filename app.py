@@ -9,7 +9,6 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import gspread
 import requests
-import re
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
@@ -49,6 +48,7 @@ try:
     print(f"'{SHEET_NAME}' 시트 열기 성공")
 except Exception as e:
     print(f"Google Sheets 초기화 실패: {e}")
+    print("🚨 중요: 시트 이름이 정확한지, 서비스 계정에 '편집자'로 공유되었는지 확인해주세요.")
 
 # --- 3. 핵심 데이터 및 설정 ---
 CATEGORY_MAP = {
@@ -98,7 +98,8 @@ def generate_final_report(results):
         is_correct = (r['question']['type'] != 'essay' and r['answer'] == r['question']['answer']) or \
                      (r['question']['type'] == 'essay' and len(r['answer']) >= 100)
         
-        scores[score_category].append(100 if is_correct else 0)
+        if score_category:
+            scores[score_category].append(100 if is_correct else 0)
 
         if r['confidence'] == 'confident':
             metacognition['confident_correct' if is_correct else 'confident_error'] += 1
@@ -112,16 +113,30 @@ def generate_final_report(results):
 
     # 추천 활동 생성
     recommendations = []
-    weakest_category = min(final_scores, key=lambda k: final_scores[k] if k != "문제 풀이 속도" else 101)
+    # Sort categories by score to find the weakest
+    sorted_scores = sorted([ (score, cat) for cat, score in final_scores.items() if cat != "문제 풀이 속도" ])
+    if sorted_scores:
+        weakest_category = sorted_scores[0][1]
 
-    if weakest_category == "단서 추론력":
-        recommendations.append({"skill": "단서 추론력 강화", "text": "서점에서 셜록 홈즈 단편선 중 한 편을 골라 읽고, 주인공이 단서를 찾아내는 과정을 노트에 정리해보세요."})
-    elif weakest_category == "비판적 사고력":
-        recommendations.append({"skill": "비판적 사고력 강화", "text": "이번 주 신문 사설을 하나 골라, 글쓴이의 주장에 동의하는 부분과 동의하지 않는 부분을 나누어 한 문단으로 요약해보세요."})
+        if weakest_category == "단서 추론력":
+            recommendations.append({"skill": "단서 추론력 강화", "text": "서점에서 셜록 홈즈 단편선 중 한 편을 골라 읽고, 주인공이 단서를 찾아내는 과정을 노트에 정리해보세요."})
+        elif weakest_category == "비판적 사고력":
+            recommendations.append({"skill": "비판적 사고력 강화", "text": "이번 주 신문 사설을 하나 골라, 글쓴이의 주장에 동의하는 부분과 동의하지 않는 부분을 나누어 한 문단으로 요약해보세요."})
+        elif weakest_category == "논리 분석력":
+             recommendations.append({"skill": "논리 분석력 강화", "text": "글의 순서나 구조를 파악하는 연습을 해보세요. 짧은 뉴스 기사를 읽고 문단별로 핵심 내용을 요약하는 훈련이 도움이 될 것입니다."})
 
-    # ... (종합 소견 생성 로직은 이전과 동일) ...
-    final_report = "### 종합 소견
-전반적으로 우수한 독해 능력을 보여주셨습니다. 특히 메타인지 분석 결과, 자신이 아는 것과 모르는 것을 잘 구분하는 능력이 돋보입니다."
+
+    # 최종 보고서 내용 (SyntaxError 수정)
+    final_report = """### 종합 소견
+전반적으로 우수한 독해 능력을 보여주셨습니다. 특히 메타인지 분석 결과, 자신이 아는 것과 모르는 것을 잘 구분하는 능력이 돋보입니다.
+
+### 강점 및 약점 분석
+- **강점:** 메타인지 분석 결과, **'자기 확신 영역'**의 비율이 높아 자신이 아는 개념을 정확하게 파악하고 있습니다.
+- **보완점:** 이번 테스트에서 가장 보완이 필요한 부분은 **'{weakest_category}'** 입니다. 특히 '개념 오적용 영역'에 해당하는 문제가 있었다면, 해당 개념을 다시 한번 복습하는 것이 중요합니다.
+
+### 맞춤형 코칭 가이드
+'{weakest_category}' 능력을 향상시키기 위한 추천 활동에 참여해보세요. 꾸준한 훈련을 통해 더 높은 수준의 독해 전문가로 성장할 수 있을 것입니다.
+""".format(weakest_category=weakest_category if sorted_scores else "N/A")
 
     return final_scores, metacognition, final_report, recommendations
 
@@ -145,5 +160,6 @@ def submit_result():
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
 
 
