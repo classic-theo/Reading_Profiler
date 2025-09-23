@@ -3,302 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSI Profiler - 관리자 페이지</title>
+    <title>CSI 프로파일러 - 관리자 페이지</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; }
         .font-orbitron { font-family: 'Orbitron', sans-serif; }
-        .btn-primary { background: linear-gradient(145deg, #0e7490, #164e63); color: white; transition: all 0.3s ease; }
-        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
-        .btn-primary:disabled { background: #4b5563; cursor: not-allowed; }
-        .form-input, .form-select, .form-textarea { background-color: #374151; border-color: #4b5563; }
+        .card { background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .btn-primary { background: linear-gradient(145deg, #0e7490, #164e63); }
+        .progress-bar-container { background-color: #1f2937; }
+        .progress-bar-fill { background: linear-gradient(90deg, #0891b2, #22d3ee); }
     </style>
 </head>
-<body class="bg-gray-900 text-white">
-    <div class="container mx-auto p-8">
-        <header class="text-center mb-12">
-            <h1 class="text-4xl font-orbitron text-cyan-400">Admin Dashboard</h1>
-            <p class="text-gray-400 mt-2">CSI Reading Profiler 콘텐츠 관리</p>
-        </header>
+<body class="bg-gray-900 text-white bg-cover bg-fixed" style="background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="relative min-h-screen container mx-auto p-4 md:p-8">
+        <h1 class="text-4xl font-orbitron text-cyan-400 text-center mb-10">Admin Dashboard</h1>
 
-        <main class="grid md:grid-cols-2 gap-8">
-            <!-- 왼쪽: 코드 관리 -->
-            <div>
-                <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
-                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">접근 코드 관리</h2>
-                    <button id="generate-code-btn" class="btn-primary font-bold py-2 px-6 rounded-lg">새 코드 생성</button>
-                    <div class="mt-4 flex items-center justify-center space-x-3 h-8">
-                        <p id="new-code-display" class="text-2xl font-orbitron text-green-400"></p>
-                        <button id="copy-code-btn" class="hidden items-center justify-center bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg transition-opacity duration-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-                                <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">생성된 코드 목록</h2>
-                    <div class="overflow-y-auto h-96">
-                        <table class="w-full text-left">
-                            <thead class="sticky top-0 bg-gray-800">
-                                <tr class="border-b border-gray-600"><th class="p-3">코드</th><th class="p-3">사용 여부</th></tr>
-                            </thead>
-                            <tbody id="code-list-body"></tbody>
-                        </table>
-                    </div>
-                     <button id="refresh-codes-btn" class="mt-4 text-cyan-400 hover:text-cyan-200">새로고침</button>
-                </div>
-            </div>
-
-            <!-- 오른쪽: AI 문제 생성 -->
+        <div class="grid md:grid-cols-2 gap-8">
+            <!-- Left Column -->
             <div class="space-y-8">
-                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">🤖 AI 문제 생성기 (직접 생성)</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label for="age-select" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
-                            <select id="age-select" class="form-select w-full rounded-lg p-2.5">
-                                <option value="10-13" selected>10-13세</option>
-                                <option value="14-16">14-16세</option>
-                                <option value="17-19">17-19세</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="category-select" class="block mb-2 text-sm font-medium text-gray-300">문제 유형</label>
-                            <select id="category-select" class="form-select w-full rounded-lg p-2.5">
-                                <option value="title" selected>제목 찾기</option>
-                                <option value="theme">주제 파악</option>
-                                <option value="argument">주장 파악</option>
-                                <option value="inference">의미 추론</option>
-                                <option value="reference">지시어 찾기</option>
-                                <option value="sentence_ordering">문장 순서 맞추기</option>
-                                <option value="paragraph_ordering">단락 순서 맞추기</option>
-                                <option value="creativity">창의적 서술력</option>
-                            </select>
-                        </div>
-                        <button id="generate-question-btn" class="w-full btn-primary font-bold py-3 rounded-lg">AI에게 문제 생성 요청</button>
-                    </div>
-                    <div id="ai-status-direct" class="mt-4 p-4 bg-gray-700/50 rounded-lg h-24 text-gray-300 overflow-y-auto">
-                        <p class="ai-status-text">AI 상태: 대기 중...</p>
-                        <div class="ai-progress-bar-container w-full bg-gray-600 rounded-full h-2.5 mt-2 hidden">
-                            <div class="ai-progress-bar bg-cyan-500 h-2.5 rounded-full" style="width: 0%"></div>
-                        </div>
+                <!-- Access Code Generator -->
+                <div class="card rounded-2xl p-6">
+                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">접근 코드 관리</h2>
+                    <button id="generate-code-btn" class="w-full btn-primary font-bold py-3 rounded-lg mb-4">새 코드 생성</button>
+                    <div id="new-code-display" class="text-center h-8"></div>
+                    <div class="mt-4 border-t border-gray-700 pt-4">
+                        <h3 class="text-lg font-semibold text-gray-300 mb-2">생성된 코드 목록</h3>
+                        <div id="code-list" class="max-h-60 overflow-y-auto bg-black/20 p-3 rounded-md"></div>
                     </div>
                 </div>
-                
-                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">📝 AI 문제 생성기 (텍스트 기반)</h2>
+
+                <!-- AI Direct Question Generator -->
+                <div class="card rounded-2xl p-6">
+                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">AI 문제 생성기 (직접)</h2>
                     <div class="space-y-4">
                         <div>
-                            <label for="text-age-select" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
-                            <select id="text-age-select" class="form-select w-full rounded-lg p-2.5">
-                                <option value="10-13" selected>10-13세</option>
-                                <option value="14-16">14-16세</option>
-                                <option value="17-19">17-19세</option>
+                            <label for="ai-age-group" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
+                            <select id="ai-age-group" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5">
+                                <option>10-13</option><option>14-16</option><option>17-19</option>
                             </select>
                         </div>
                         <div>
-                            <label for="text-category-select" class="block mb-2 text-sm font-medium text-gray-300">측정 능력</label>
-                            <select id="text-category-select" class="form-select w-full rounded-lg p-2.5">
-                                <option value="title" selected>제목 찾기</option>
-                                <option value="theme">주제 파악</option>
+                            <label for="ai-category" class="block mb-2 text-sm font-medium text-gray-300">측정 능력 (문제 유형)</label>
+                            <select id="ai-category" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5">
+                                <option value="title">제목 찾기</option>
+                                <option value="theme">주제 찾기</option>
                                 <option value="argument">주장 파악</option>
                                 <option value="inference">의미 추론</option>
-                                <option value="reference">지시어 찾기</option>
+                                <option value="pronoun">지시어 찾기</option>
                                 <option value="sentence_ordering">문장 순서 맞추기</option>
                                 <option value="paragraph_ordering">단락 순서 맞추기</option>
-                                <option value="creativity">창의적 서술력</option>
                             </select>
                         </div>
-                        <textarea id="text-input" class="form-textarea w-full rounded-lg p-2.5 h-48" placeholder="이곳에 기사나 지문 내용을 붙여넣으세요..."></textarea>
-                        <button id="generate-from-text-btn" class="w-full btn-primary font-bold py-3 rounded-lg">붙여넣은 텍스트로 문제 생성</button>
+                        <button id="ai-generate-btn" class="w-full btn-primary font-bold py-3 rounded-lg">AI에게 문제 생성 요청</button>
                     </div>
-                    <div id="ai-status-text-based" class="mt-4 p-4 bg-gray-700/50 rounded-lg h-24 text-gray-300 overflow-y-auto">
-                        <p class="ai-status-text">AI 상태: 대기 중...</p>
-                        <div class="ai-progress-bar-container w-full bg-gray-600 rounded-full h-2.5 mt-2 hidden">
-                            <div class="ai-progress-bar bg-cyan-500 h-2.5 rounded-full" style="width: 0%"></div>
-                        </div>
+                    <div id="ai-status" class="text-center h-12 mt-4"></div>
+                    <div id="ai-progress-container" class="w-full progress-bar-container rounded-full h-2.5 mt-2 hidden">
+                        <div id="ai-progress-bar" class="progress-bar-fill h-2.5 rounded-full" style="width: 0%"></div>
                     </div>
                 </div>
             </div>
-        </main>
+
+            <!-- Right Column -->
+            <div class="card rounded-2xl p-6">
+                <h2 class="text-2xl font-bold text-cyan-300 mb-4">AI 문제 생성기 (텍스트 기반)</h2>
+                <div class="space-y-4">
+                     <div>
+                        <label for="text-age-group" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
+                        <select id="text-age-group" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5">
+                            <option>10-13</option><option>14-16</option><option>17-19</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="text-category" class="block mb-2 text-sm font-medium text-gray-300">측정 능력 (문제 유형)</label>
+                        <select id="text-category" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5">
+                            <option value="title">제목 찾기</option>
+                            <option value="theme">주제 찾기</option>
+                            <option value="argument">주장 파악</option>
+                            <option value="inference">의미 추론</option>
+                            <option value="pronoun">지시어 찾기</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="text-input" class="block mb-2 text-sm font-medium text-gray-300">분석할 텍스트 붙여넣기</label>
+                        <textarea id="text-input" rows="8" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5" placeholder="기사, 블로그 포스트 등 문제로 만들고 싶은 글의 본문을 여기에 붙여넣으세요..."></textarea>
+                    </div>
+                    <button id="text-generate-btn" class="w-full btn-primary font-bold py-3 rounded-lg">붙여넣은 텍스트로 문제 생성</button>
+                </div>
+                <div id="text-status" class="text-center h-12 mt-4"></div>
+                <div id="text-progress-container" class="w-full progress-bar-container rounded-full h-2.5 mt-2 hidden">
+                    <div id="text-progress-bar" class="progress-bar-fill h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        const generateCodeBtn = document.getElementById('generate-code-btn');
-        const newCodeDisplay = document.getElementById('new-code-display');
-        const codeListBody = document.getElementById('code-list-body');
-        const refreshCodesBtn = document.getElementById('refresh-codes-btn');
-        const copyCodeBtn = document.getElementById('copy-code-btn');
+    // --- Code Management ---
+    const generateCodeBtn = document.getElementById('generate-code-btn');
+    const newCodeDisplay = document.getElementById('new-code-display');
+    const codeList = document.getElementById('code-list');
 
-        const generateQuestionBtn = document.getElementById('generate-question-btn');
-        const ageSelect = document.getElementById('age-select');
-        const categorySelect = document.getElementById('category-select');
-        const aiStatusDirect = document.getElementById('ai-status-direct');
+    const fetchCodes = async () => {
+        const response = await fetch('/api/get-codes');
+        const codes = await response.json();
+        codeList.innerHTML = codes.map(c => `
+            <div class="flex justify-between items-center text-sm p-1.5 rounded ${c.isUsed ? 'text-gray-500' : 'text-gray-200'}">
+                <span>${c.code}</span>
+                <span class="text-xs">${c.isUsed ? `(사용됨: ${c.userName || ''})` : '(미사용)'}</span>
+            </div>
+        `).join('');
+    };
 
-        const generateFromTextBtn = document.getElementById('generate-from-text-btn');
-        const textInput = document.getElementById('text-input');
-        const textAgeSelect = document.getElementById('text-age-select');
-        const textCategorySelect = document.getElementById('text-category-select');
-        const aiStatusTextBased = document.getElementById('ai-status-text-based');
-
-        let progressInterval = null;
-        const API_BASE_URL = '/api';
-
-        async function fetchCodes() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/get-codes`);
-                const codes = await response.json();
-                
-                codeListBody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-gray-500">생성된 코드가 없습니다.</td></tr>';
-                if (codes.length > 0) {
-                    codeListBody.innerHTML = '';
-                    codes.forEach(code => {
-                        const row = `
-                            <tr class="border-b border-gray-700 hover:bg-gray-700/50">
-                                <td class="p-3 font-orbitron">${code.code}</td>
-                                <td class="p-3 ${code.isUsed ? 'text-green-400' : 'text-red-400'}">${code.isUsed ? '사용됨' : '사용 안 함'}</td>
-                            </tr>
-                        `;
-                        codeListBody.innerHTML += row;
-                    });
-                }
-            } catch (error) {
-                codeListBody.innerHTML = '<tr><td colspan="2" class="text-center p-4 text-red-500">목록 로딩 실패</td></tr>';
-            }
-        }
-
-        async function generateNewCode() {
-            generateCodeBtn.disabled = true;
-            generateCodeBtn.textContent = '생성 중...';
-            newCodeDisplay.textContent = '';
-            copyCodeBtn.classList.add('hidden');
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/generate-code`, { method: 'POST' });
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    newCodeDisplay.textContent = data.code;
-                    copyCodeBtn.classList.remove('hidden');
-                    await fetchCodes();
-                } else {
-                    newCodeDisplay.textContent = data.message || '생성 실패';
-                }
-            } catch (error) {
-                newCodeDisplay.textContent = '서버 통신 오류';
-            } finally {
-                generateCodeBtn.disabled = false;
-                generateCodeBtn.textContent = '새 코드 생성';
-            }
-        }
-
-        function startAIProgress(statusElement, buttonElement, message) {
-            buttonElement.disabled = true;
-            buttonElement.textContent = 'AI 작업 중...';
-            
-            const statusText = statusElement.querySelector('.ai-status-text');
-            const progressBarContainer = statusElement.querySelector('.ai-progress-bar-container');
-            const progressBar = statusElement.querySelector('.ai-progress-bar');
-
-            statusText.textContent = message;
-            progressBar.style.width = '0%';
-            progressBarContainer.classList.remove('hidden');
-
-            let progress = 0;
-            progressInterval = setInterval(() => {
-                progress += 5;
-                progressBar.style.width = `${progress}%`;
-                if (progress >= 95) clearInterval(progressInterval);
-            }, 1000);
-        }
-
-        function stopAIProgress(statusElement, buttonElement, originalText) {
-            clearInterval(progressInterval);
-            const progressBarContainer = statusElement.querySelector('.ai-progress-bar-container');
-            const progressBar = statusElement.querySelector('.ai-progress-bar');
-            
-            progressBar.style.width = '100%';
-            buttonElement.disabled = false;
-            buttonElement.textContent = originalText;
-            
-            setTimeout(() => {
-                progressBarContainer.classList.add('hidden');
-            }, 5000);
-        }
-
-        async function generateNewQuestion() {
-            startAIProgress(aiStatusDirect, generateQuestionBtn, 'AI에게 요청을 보내는 중...');
-            try {
-                const response = await fetch(`${API_BASE_URL}/generate-question`, { 
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ age: ageSelect.value, category: categorySelect.value })
-                });
-                const data = await response.json();
-                aiStatusDirect.querySelector('.ai-status-text').textContent = response.ok && data.success ? `✅ 성공: ${data.message}` : `❌ 실패: ${data.message || '알 수 없는 오류'}`;
-            } catch (error) {
-                aiStatusDirect.querySelector('.ai-status-text').textContent = `❌ 네트워크 오류`;
-            } finally {
-                stopAIProgress(aiStatusDirect, generateQuestionBtn, 'AI에게 문제 생성 요청');
-            }
-        }
-
-        async function generateQuestionFromText() {
-            if (!textInput.value || textInput.value.length < 100) {
-                alert('100자 이상의 텍스트를 입력해주세요.');
-                return;
-            }
-            startAIProgress(aiStatusTextBased, generateFromTextBtn, '텍스트 분석 및 문제 생성 중...');
-            try {
-                const response = await fetch(`${API_BASE_URL}/generate-question-from-text`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ 
-                        text: textInput.value,
-                        age: textAgeSelect.value,
-                        category: textCategorySelect.value
-                    })
-                });
-                const data = await response.json();
-                aiStatusTextBased.querySelector('.ai-status-text').textContent = response.ok && data.success ? `✅ 성공: ${data.message}` : `❌ 실패: ${data.message || '알 수 없는 오류'}`;
-                if (response.ok && data.success) textInput.value = '';
-            } catch (error) {
-                aiStatusTextBased.querySelector('.ai-status-text').textContent = `❌ 네트워크 오류`;
-            } finally {
-                stopAIProgress(aiStatusTextBased, generateFromTextBtn, '붙여넣은 텍스트로 문제 생성');
-            }
-        }
-
-        generateCodeBtn.addEventListener('click', generateNewCode);
-        refreshCodesBtn.addEventListener('click', fetchCodes);
-        generateQuestionBtn.addEventListener('click', generateNewQuestion);
-        generateFromTextBtn.addEventListener('click', generateQuestionFromText);
-        document.addEventListener('DOMContentLoaded', fetchCodes);
-        
-        copyCodeBtn.addEventListener('click', () => {
-             const codeToCopy = newCodeDisplay.textContent;
-            if (!codeToCopy) return;
-
-            const tempInput = document.createElement('textarea');
-            tempInput.value = codeToCopy;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempInput);
-
-            const originalIcon = copyCodeBtn.innerHTML;
-            copyCodeBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-lg text-green-400" viewBox="0 0 16 16">
-                  <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022z"/>
-                </svg>
+    generateCodeBtn.addEventListener('click', async () => {
+        newCodeDisplay.textContent = '생성 중...';
+        const response = await fetch('/api/generate-code', { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+            newCodeDisplay.innerHTML = `
+                <span class="text-green-400 font-mono text-lg">${data.code}</span>
+                <button onclick="copyToClipboard('${data.code}')" class="ml-2 bg-gray-600 px-2 py-1 rounded text-xs hover:bg-gray-500">복사</button>
             `;
-            setTimeout(() => {
-                copyCodeBtn.innerHTML = originalIcon;
-            }, 1500);
+            fetchCodes();
+        } else {
+            newCodeDisplay.textContent = `오류: ${data.message}`;
+        }
+    });
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = newCodeDisplay.innerHTML;
+            newCodeDisplay.querySelector('button').textContent = '복사됨!';
+            setTimeout(() => { newCodeDisplay.innerHTML = originalText; }, 2000);
         });
+    }
+
+    // --- AI Question Generation ---
+    function setupAIGenerator(type) {
+        const generateBtn = document.getElementById(`${type}-generate-btn`);
+        const statusEl = document.getElementById(`${type}-status`);
+        const progressContainer = document.getElementById(`${type}-progress-container`);
+        const progressBar = document.getElementById(`${type}-progress-bar`);
+
+        generateBtn.addEventListener('click', async () => {
+            statusEl.textContent = 'AI가 문제를 생성하고 있습니다... (최대 1분 소요)';
+            progressContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 10;
+                progressBar.style.width = `${Math.min(progress, 90)}%`;
+            }, 2000);
+
+            const ageGroup = document.getElementById(`${type}-age-group`).value;
+            const category = document.getElementById(`${type}-category`).value;
+            const textInput = (type === 'text') ? document.getElementById('text-input').value : null;
+
+            const endpoint = (type === 'text') ? '/api/generate-question-from-text' : '/api/generate-question';
+            const body = (type === 'text') ? 
+                { text: textInput, ageGroup: ageGroup, category: category } : 
+                { ageGroup: ageGroup, category: category };
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+
+                clearInterval(interval);
+                progressBar.style.width = '100%';
+                
+                if (data.success) {
+                    statusEl.innerHTML = `<span class="text-green-400">✅ ${data.message}</span>`;
+                    if (type === 'text') document.getElementById('text-input').value = ''; // Clear textarea on success
+                } else {
+                    statusEl.innerHTML = `<span class="text-red-400">❌ 실패: ${data.message}</span>`;
+                }
+            } catch (error) {
+                clearInterval(interval);
+                progressBar.style.width = '100%';
+                statusEl.innerHTML = `<span class="text-red-400">❌ 네트워크 오류: 서버와 통신할 수 없습니다.</span>`;
+            }
+
+            setTimeout(() => {
+                progressContainer.classList.add('hidden');
+            }, 3000);
+        });
+    }
+
+    // --- Initial Load ---
+    fetchCodes();
+    setupAIGenerator('ai');
+    setupAIGenerator('text');
     </script>
 </body>
 </html>
