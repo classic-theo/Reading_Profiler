@@ -10,6 +10,7 @@ from firebase_admin import credentials, firestore
 import gspread
 import requests
 import re
+import google.generativeai as genai
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
@@ -18,6 +19,14 @@ app = Flask(__name__, template_folder='templates')
 db = None
 sheet = None
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+
+# Google AI SDK 설정
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        print("Google AI SDK 초기화 성공")
+    except Exception as e:
+        print(f"Google AI SDK 초기화 실패: {e}")
 
 # Firebase 초기화
 try:
@@ -66,9 +75,8 @@ SCORE_CATEGORY_MAP = {
     "essay": "창의적 서술력"
 }
 
-# --- 4. AI 관련 함수 (전체 구현) ---
+# --- 4. AI 관련 함수 (SDK 방식으로 전면 수정) ---
 def get_detailed_prompt(category, age_group, text_content=None):
-    # 연령대에 따른 구체적인 지시사항 정의
     if age_group == "10-13":
         level_instruction = "대한민국 초등학교 4~6학년 국어 교과서 수준의 어휘와 문장 구조를 사용해줘. '야기하다', '고찰하다' 같은 어려운 한자어는 '일으킨다', '살펴본다'처럼 쉬운 말로 풀어 써줘."
         passage_length = "최소 2개 문단, 150자 이상"
@@ -79,7 +87,6 @@ def get_detailed_prompt(category, age_group, text_content=None):
         level_instruction = "대한민국 고등학교 1~3학년 수준의 어휘와 복합적인 문장 구조를 사용해도 좋아. 사회, 과학, 인문 등 다양한 분야의 배경지식을 활용해줘."
         passage_length = "최소 3개 문단, 350자 이상"
 
-    # 문제 유형별 맞춤형 지시사항 및 주제 정의
     type_instruction = ""
     topics = {
         "default": ["흥미로운 동물 상식", "일상 속 과학 원리", "역사 속 인물 이야기"],
@@ -136,40 +143,24 @@ def get_detailed_prompt(category, age_group, text_content=None):
     
     return base_prompt
 
-def call_gemini_api(prompt):
+def call_gemini_api_sdk(prompt):
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
     
-    headers = {'Content-Type': 'application/json'}
-    data = {'contents': [{'parts': [{'text': prompt}]}]}
-    # 모델명을 표준 버전으로 최종 수정
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(prompt)
     
-    for i in range(3): # 최대 3번 재시도
+    raw_text = response.text
+    match = re.search(r'```json\s*([\s\S]+?)\s*```', raw_text)
+    if match:
+        json_str = match.group(1)
+        return json.loads(json_str)
+    else:
         try:
-            response = requests.post(url, headers=headers, data=json.dumps(data), timeout=90)
-            response.raise_for_status()
-            result = response.json()
-            
-            if 'candidates' in result and result['candidates'][0]['content']['parts'][0]['text']:
-                raw_text = result['candidates'][0]['content']['parts'][0]['text']
-                # AI 응답에서 JSON 부분만 추출
-                match = re.search(r'```json\s*([\s\S]+?)\s*```', raw_text)
-                if match:
-                    json_str = match.group(1)
-                    return json.loads(json_str)
-                else:
-                    return json.loads(raw_text)
-            else:
-                raise ValueError(f"API 응답 형식 오류: {result}")
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 429: # Too Many Requests
-                print(f"API 요청 한도 초과. {i+1}번째 재시도 대기...")
-                time.sleep( (i + 1) * 5 )
-                continue
-            else:
-                raise e
-    raise Exception("API 요청이 계속 실패했습니다.")
+            return json.loads(raw_text)
+        except json.JSONDecodeError:
+             raise ValueError(f"AI가 유효한 JSON을 생성하지 못했습니다: {raw_text}")
+
 
 # --- 5. 라우팅 (API 엔드포인트) ---
 @app.route('/')
@@ -178,7 +169,6 @@ def serve_index(): return render_template('index.html')
 @app.route('/admin')
 def serve_admin(): return render_template('admin.html')
 
-# --- Admin 페이지 API (전체 구현) ---
 @app.route('/api/generate-code', methods=['POST'])
 def generate_code():
     if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
@@ -212,10 +202,11 @@ def generate_question_from_ai():
     try:
         data = request.get_json()
         prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'))
-        question_data = call_gemini_api(prompt)
+        question_data = call_gemini_api_sdk(prompt)
         db.collection('questions').add(question_data)
-        return jsonify({"success": True, "message": f"성공: AI가 '{question_data['title']}' 문제를 생성했습니다."})
+        return jsonify({"success": True, "message": f"성공: AI가 '{question_data.get('title', '새로운')}' 문제를 생성했습니다."})
     except Exception as e:
+        print(f"AI 문제 생성 중 오류: {e}")
         return jsonify({"success": False, "message": f"AI 문제 생성 중 오류 발생: {e}"}), 500
 
 @app.route('/api/generate-question-from-text', methods=['POST'])
@@ -224,14 +215,12 @@ def generate_question_from_text():
     try:
         data = request.get_json()
         prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'), data.get('textContent'))
-        question_data = call_gemini_api(prompt)
+        question_data = call_gemini_api_sdk(prompt)
         db.collection('questions').add(question_data)
         return jsonify({"success": True, "message": f"성공: AI가 텍스트 기반 문제를 생성했습니다."})
     except Exception as e:
         return jsonify({"success": False, "message": f"텍스트 기반 문제 생성 중 오류 발생: {e}"}), 500
 
-
-# --- 사용자 테스트 API (전체 구현) ---
 @app.route('/api/validate-code', methods=['POST'])
 def validate_code():
     if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
@@ -241,7 +230,6 @@ def validate_code():
     if not code_doc.exists: return jsonify({"success": False, "message": "유효하지 않은 코드입니다."})
     if code_doc.to_dict().get('isUsed'): return jsonify({"success": False, "message": "이미 사용된 코드입니다."})
     return jsonify({"success": True})
-
 
 @app.route('/api/get-test', methods=['POST'])
 def get_test():
@@ -275,23 +263,95 @@ def get_test():
     except Exception as e:
         return jsonify([]), 500
 
-# (AI 동적 리포트 생성 함수 및 최종 분석 로직은 생략)
 def generate_final_report(user_name, results):
-    # This is a placeholder for the detailed report generation
-    final_scores = {"정보 이해력": 80, "논리 분석력": 75, "단서 추론력": 90, "비판적 사고력": 65, "창의적 서술력": 88, "문제 풀이 속도": 70}
-    metacognition = {}
-    final_report_text = "분석이 완료되었습니다. 훌륭합니다!"
+    scores = { "정보 이해력": [], "논리 분석력": [], "단서 추론력": [], "비판적 사고력": [], "창의적 서술력": [] }
+    metacognition = {"confident_correct": 0, "confident_error": 0, "unsure_correct": 0, "unsure_error": 0}
+    total_time = 0
+    
+    for r in results:
+        total_time += r.get('time', 0)
+        score_category = SCORE_CATEGORY_MAP.get(r['question']['category'])
+        is_correct = (r['question']['type'] != 'essay' and r['answer'] == r['question']['answer']) or \
+                     (r['question']['type'] == 'essay' and len(r.get('answer','')) >= 100)
+        
+        if score_category:
+            scores[score_category].append(100 if is_correct else 0)
+
+        if r['confidence'] == 'confident':
+            metacognition['confident_correct' if is_correct else 'confident_error'] += 1
+        else:
+            metacognition['unsure_correct' if is_correct else 'unsure_error'] += 1
+
+    final_scores = {cat: (sum(s) / len(s)) if s else 0 for cat, s in scores.items()}
+    final_scores["문제 풀이 속도"] = max(0, 100 - (total_time / 15 * 5)) # 예시 계산
+
     recommendations = []
+    sorted_scores = sorted([ (score, cat) for cat, score in final_scores.items() if cat != "문제 풀이 속도" ])
+    if sorted_scores:
+        weakest_category = sorted_scores[0][1]
+        if weakest_category == "단서 추론력": recommendations.append({"skill": "단서 추론력 강화", "text": "서점에서 셜록 홈즈 단편선 중 한 편을 골라 읽고, 주인공이 단서를 찾아내는 과정을 노트에 정리해보세요."})
+        elif weakest_category == "비판적 사고력": recommendations.append({"skill": "비판적 사고력 강화", "text": "이번 주 신문 사설을 하나 골라, 글쓴이의 주장에 동의하는 부분과 동의하지 않는 부분을 나누어 한 문단으로 요약해보세요."})
+        elif weakest_category == "논리 분석력": recommendations.append({"skill": "논리 분석력 강화", "text": "글의 순서나 구조를 파악하는 연습을 해보세요. 짧은 뉴스 기사를 읽고 문단별로 핵심 내용을 요약하는 훈련이 도움이 될 것입니다."})
+
+    # AI 동적 리포트 생성
+    final_report_text = generate_dynamic_report_from_ai(user_name, final_scores, metacognition)
+
     return final_scores, metacognition, final_report_text, recommendations
+
+def generate_dynamic_report_from_ai(user_name, scores, metacognition):
+    if not GEMINI_API_KEY: return "AI 리포트 생성에 실패했습니다. (API 키 부재)"
+    try:
+        strongest_score = 0; strongest_category = "없음"; weakest_score = 100; weakest_category = "없음"
+        for category, score in scores.items():
+            if category != "문제 풀이 속도":
+                if score > strongest_score: strongest_score = score; strongest_category = category
+                if score < weakest_score: weakest_score = score; weakest_category = category
+        
+        student_data_summary = f"""- 학생 이름: {user_name}
+- 가장 뛰어난 능력: {strongest_category} ({strongest_score:.0f}점)
+- 가장 보완이 필요한 능력: {weakest_category} ({weakest_score:.0f}점)
+- 메타인지 분석: '자신만만하게 정답을 맞힌 문항' {metacognition['confident_correct']}개, '자신만만하게 틀린 문항(개념 오적용)' {metacognition['confident_error']}개."""
+
+        prompt = f"""당신은 학생의 독서력 테스트 결과를 분석하고, 따뜻하고 격려하는 어조로 맞춤형 종합 소견을 작성하는 최고의 교육 컨설턴트입니다.
+아래 학생의 테스트 결과 데이터를 바탕으로, 학생만을 위한 특별한 종합 소견을 작성해주세요.
+[규칙]
+1. 학생의 이름을 부르며 친근하게 시작해주세요.
+2. 학생의 가장 뛰어난 능력을 먼저 칭찬하며 자신감을 북돋아주세요.
+3. 가장 보완이 필요한 능력에 대해서는, 부정적인 표현 대신 '성장 기회'로 표현하며 구체적인 조언을 한두 문장 덧붙여주세요.
+4. 메타인지 분석 결과를 자연스럽게 녹여내어, 학생이 자신의 학습 습관을 돌아볼 수 있도록 유도해주세요. 특히 '자신만만하게 틀린 문항'이 있었다면, 그 점을 부드럽게 지적하며 꼼꼼함의 중요성을 강조해주세요.
+5. 전체 내용은 3~4개의 문단으로 구성된, 진심이 담긴 하나의 완결된 글로 작성해주세요. Markdown 형식(#, ##, **)을 사용하여 가독성을 높여주세요.
+[학생 테스트 결과 데이터]
+{student_data_summary}
+[종합 소견 작성 시작]"""
+        
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"AI 리포트 생성 중 오류: {e}")
+        return "AI 리포트를 생성하는 중 오류가 발생했습니다."
 
 @app.route('/api/submit-result', methods=['POST'])
 def submit_result():
     data = request.get_json()
     user_info = data.get('userInfo', {})
     results = data.get('results', [])
+    
     final_scores, metacognition, final_report, recommendations = generate_final_report(user_info.get('name'), results)
     
-    # ... (Google Sheets saving logic) ...
+    try:
+        if sheet:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            row = [
+                now, user_info.get('name'), user_info.get('age'), user_info.get('accessCode'),
+                final_scores.get('정보 이해력', 0), final_scores.get('논리 분석력', 0),
+                final_scores.get('단서 추론력', 0), final_scores.get('비판적 사고력', 0),
+                final_scores.get('창의적 서술력', 0), final_scores.get('문제 풀이 속도', 0),
+                metacognition.get('confident_error', 0), final_report
+            ]
+            sheet.append_row(row)
+    except Exception as e:
+        print(f"Google Sheets 저장 오류: {e}")
 
     return jsonify({
         "success": True,
@@ -304,6 +364,4 @@ def submit_result():
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
-
 
