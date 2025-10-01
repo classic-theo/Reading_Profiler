@@ -142,7 +142,7 @@ def call_gemini_api(prompt):
     
     headers = {'Content-Type': 'application/json'}
     data = {'contents': [{'parts': [{'text': prompt}]}]}
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
     
     for i in range(3): # 최대 3번 재시도
         try:
@@ -304,5 +304,4 @@ def submit_result():
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
 
