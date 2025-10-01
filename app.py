@@ -142,7 +142,8 @@ def call_gemini_api(prompt):
     
     headers = {'Content-Type': 'application/json'}
     data = {'contents': [{'parts': [{'text': prompt}]}]}
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+    # 모델명을 안정적인 최신 버전으로 수정
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
     
     for i in range(3): # 최대 3번 재시도
         try:
@@ -158,14 +159,13 @@ def call_gemini_api(prompt):
                     json_str = match.group(1)
                     return json.loads(json_str)
                 else:
-                    # JSON 형식이 아닌 경우, 직접 파싱 시도 (단순 텍스트 응답 대비)
                     return json.loads(raw_text)
             else:
                 raise ValueError(f"API 응답 형식 오류: {result}")
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 429: # Too Many Requests
                 print(f"API 요청 한도 초과. {i+1}번째 재시도 대기...")
-                time.sleep( (i + 1) * 5 ) # 5, 10, 15초 대기
+                time.sleep( (i + 1) * 5 )
                 continue
             else:
                 raise e
@@ -296,4 +296,11 @@ def submit_result():
     return jsonify({
         "success": True,
         "analysis": final_scores,
-        "met
+        "metacognition": metacognition,
+        "overall_comment": final_report,
+        "recommendations": recommendations
+    })
+
+# --- 서버 실행 ---
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
