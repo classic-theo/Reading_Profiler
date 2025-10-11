@@ -39,7 +39,7 @@ try:
         print("✅ 통합 인증 정보(로컬 credentials.json) 로드 성공")
 
     PROJECT_ID = os.environ.get('GOOGLE_CLOUD_PROJECT', cred_dict.get('project_id'))
-    LOCATION = os.environ.get('GOOGLE_CLOUD_LOCATION', "asia-northeast3") # 환경 변수에서 위치 로드
+    LOCATION = os.environ.get('GOOGLE_CLOUD_LOCATION', "asia-northeast3")
     vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=creds)
     print(f"✅ Vertex AI SDK 초기화 성공 (Project: {PROJECT_ID}, Location: {LOCATION})")
 
@@ -140,8 +140,8 @@ def get_detailed_prompt(category, age_group, text_content=None):
     return base_prompt
 
 def call_vertex_ai_sdk(prompt):
-    # 가장 안정적인 표준 모델로 최종 수정
-    model = GenerativeModel("gemini-1.0-pro")
+    # 서울 리전에서 사용 가능한 최신 안정화 모델로 최종 수정
+    model = GenerativeModel("gemini-1.5-pro-preview-0514")
     response = model.generate_content([prompt])
     
     raw_text = response.text
@@ -357,13 +357,14 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]
 """
-    model = GenerativeModel("gemini-1.0-pro-vision")
+    model = GenerativeModel("gemini-1.5-pro-preview-0514")
     response = model.generate_content([prompt])
     return response.text
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
 
 
 
