@@ -8,9 +8,11 @@ from flask import Flask, render_template, jsonify, request
 import firebase_admin
 from firebase_admin import credentials, firestore
 import gspread
-import requests
 import re
-import google.generativeai as genai
+
+# Vertex AI SDK (새로운 통신 방식)
+import vertexai
+from vertexai.generative_models import GenerativeModel, Part
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
@@ -18,15 +20,18 @@ app = Flask(__name__, template_folder='templates')
 # --- 2. 외부 서비스 초기화 ---
 db = None
 sheet = None
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GOOGLE_CLOUD_PROJECT = os.environ.get('GOOGLE_CLOUD_PROJECT')
+GOOGLE_CLOUD_LOCATION = os.environ.get('GOOGLE_CLOUD_LOCATION', 'us-central1')
 
-# Google AI SDK 설정
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        print("Google AI SDK 초기화 성공")
-    except Exception as e:
-        print(f"Google AI SDK 초기화 실패: {e}")
+# Vertex AI SDK 초기화
+try:
+    if not GOOGLE_CLOUD_PROJECT:
+        print("🚨 중요: GOOGLE_CLOUD_PROJECT 환경 변수가 설정되지 않았습니다.")
+    else:
+        vertexai.init(project=GOOGLE_CLOUD_PROJECT, location=GOOGLE_CLOUD_LOCATION)
+        print(f"Vertex AI SDK 초기화 성공 (Project: {GOOGLE_CLOUD_PROJECT}, Location: {GOOGLE_CLOUD_LOCATION})")
+except Exception as e:
+    print(f"Vertex AI SDK 초기화 실패: {e}")
 
 # Firebase 초기화
 try:
@@ -75,7 +80,7 @@ SCORE_CATEGORY_MAP = {
     "essay": "창의적 서술력"
 }
 
-# --- 4. AI 관련 함수 (SDK 방식으로 전면 수정) ---
+# --- 4. AI 관련 함수 (Vertex AI SDK 방식으로 전면 수정) ---
 def get_detailed_prompt(category, age_group, text_content=None):
     if age_group == "10-13":
         level_instruction = "대한민국 초등학교 4~6학년 국어 교과서 수준의 어휘와 문장 구조를 사용해줘. '야기하다', '고찰하다' 같은 어려운 한자어는 '일으킨다', '살펴본다'처럼 쉬운 말로 풀어 써줘."
@@ -143,12 +148,12 @@ def get_detailed_prompt(category, age_group, text_content=None):
     
     return base_prompt
 
-def call_gemini_api_sdk(prompt):
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
+def call_vertex_ai_sdk(prompt):
+    if not GOOGLE_CLOUD_PROJECT:
+        raise ValueError("Vertex AI를 사용하려면 GOOGLE_CLOUD_PROJECT가 설정되어야 합니다.")
     
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(prompt)
+    model = GenerativeModel("gemini-1.5-flash-001")
+    response = model.generate_content([prompt])
     
     raw_text = response.text
     match = re.search(r'```json\s*([\s\S]+?)\s*```', raw_text)
@@ -202,7 +207,7 @@ def generate_question_from_ai():
     try:
         data = request.get_json()
         prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'))
-        question_data = call_gemini_api_sdk(prompt)
+        question_data = call_vertex_ai_sdk(prompt)
         db.collection('questions').add(question_data)
         return jsonify({"success": True, "message": f"성공: AI가 '{question_data.get('title', '새로운')}' 문제를 생성했습니다."})
     except Exception as e:
@@ -215,7 +220,7 @@ def generate_question_from_text():
     try:
         data = request.get_json()
         prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'), data.get('textContent'))
-        question_data = call_gemini_api_sdk(prompt)
+        question_data = call_vertex_ai_sdk(prompt)
         db.collection('questions').add(question_data)
         return jsonify({"success": True, "message": f"성공: AI가 텍스트 기반 문제를 생성했습니다."})
     except Exception as e:
@@ -299,7 +304,7 @@ def generate_final_report(user_name, results):
     return final_scores, metacognition, final_report_text, recommendations
 
 def generate_dynamic_report_from_ai(user_name, scores, metacognition):
-    if not GEMINI_API_KEY: return "AI 리포트 생성에 실패했습니다. (API 키 부재)"
+    if not GOOGLE_CLOUD_PROJECT: return "AI 리포트 생성에 실패했습니다. (프로젝트 ID 부재)"
     try:
         strongest_score = 0; strongest_category = "없음"; weakest_score = 100; weakest_category = "없음"
         for category, score in scores.items():
@@ -324,8 +329,8 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]"""
         
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
+        model = GenerativeModel("gemini-1.5-flash-001")
+        response = model.generate_content([prompt])
         return response.text
     except Exception as e:
         print(f"AI 리포트 생성 중 오류: {e}")
@@ -364,8 +369,3 @@ def submit_result():
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
-
-
-
-
