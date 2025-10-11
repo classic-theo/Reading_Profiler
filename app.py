@@ -10,9 +10,9 @@ from firebase_admin import credentials, firestore
 import gspread
 import re
 
-# Vertex AI SDK (새로운 통신 방식)
+# Vertex AI SDK (최종 통신 방식)
 import vertexai
-from vertexai.generative_models import GenerativeModel, Part
+from vertexai.generative_models import GenerativeModel
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
@@ -80,7 +80,7 @@ SCORE_CATEGORY_MAP = {
     "essay": "창의적 서술력"
 }
 
-# --- 4. AI 관련 함수 (Vertex AI SDK 방식으로 전면 수정) ---
+# --- 4. AI 관련 함수 (Vertex AI SDK 방식) ---
 def get_detailed_prompt(category, age_group, text_content=None):
     if age_group == "10-13":
         level_instruction = "대한민국 초등학교 4~6학년 국어 교과서 수준의 어휘와 문장 구조를 사용해줘. '야기하다', '고찰하다' 같은 어려운 한자어는 '일으킨다', '살펴본다'처럼 쉬운 말로 풀어 써줘."
@@ -266,6 +266,7 @@ def get_test():
         print(f"문제 생성 완료: {len(questions)}개 문항 ({age_group} 대상)")
         return jsonify(questions)
     except Exception as e:
+        print(f"'/api/get-test' 오류: {e}")
         return jsonify([]), 500
 
 def generate_final_report(user_name, results):
@@ -369,3 +370,4 @@ def submit_result():
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
