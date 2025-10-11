@@ -140,7 +140,7 @@ def get_detailed_prompt(category, age_group, text_content=None):
     return base_prompt
 
 def call_vertex_ai_sdk(prompt):
-    model = GenerativeModel("gemini-1.0-pro-001")
+    model = GenerativeModel("gemini-1.5-pro-001")
     response = model.generate_content([prompt])
     
     raw_text = response.text
@@ -342,7 +342,6 @@ def submit_result():
         return jsonify({"success": False, "message": f"결과를 전송하는 중 오류가 발생했습니다: {e}"}), 500
 
 def generate_dynamic_report_from_ai(user_name, scores, metacognition):
-    # (AI 리포트 생성 프롬프트 및 호출 로직은 이전과 동일)
     strongest_score, strongest_category, weakest_score, weakest_category = 0, "없음", 100, "없음"
     for category, score in scores.items():
         if category != "문제 풀이 속도":
@@ -364,13 +363,14 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]
 """
-    model = GenerativeModel("gemini-1.0-pro-001")
+    model = GenerativeModel("gemini-1.5-pro-001")
     response = model.generate_content([prompt])
     return response.text
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
 
 
 
