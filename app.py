@@ -38,10 +38,10 @@ try:
             cred_dict = json.load(f)
         print("✅ 통합 인증 정보(로컬 credentials.json) 로드 성공")
 
-    PROJECT_ID = cred_dict.get('project_id')
-    LOCATION = "us-central1"
+    PROJECT_ID = os.environ.get('GOOGLE_CLOUD_PROJECT', cred_dict.get('project_id'))
+    LOCATION = os.environ.get('GOOGLE_CLOUD_LOCATION', "asia-northeast3") # 환경 변수에서 위치 로드
     vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=creds)
-    print(f"✅ Vertex AI SDK 초기화 성공 (Project: {PROJECT_ID})")
+    print(f"✅ Vertex AI SDK 초기화 성공 (Project: {PROJECT_ID}, Location: {LOCATION})")
 
     firebase_cred = credentials.Certificate(cred_dict)
     if not firebase_admin._apps:
@@ -140,7 +140,8 @@ def get_detailed_prompt(category, age_group, text_content=None):
     return base_prompt
 
 def call_vertex_ai_sdk(prompt):
-    model = GenerativeModel("gemini-1.0-pro-vision")
+    # 가장 안정적인 표준 모델로 최종 수정
+    model = GenerativeModel("gemini-1.0-pro")
     response = model.generate_content([prompt])
     
     raw_text = response.text
@@ -182,9 +183,7 @@ def get_codes():
         codes = []
         for doc in codes_ref:
             c = doc.to_dict()
-            # Firestore 타임스탬프를 Python datetime 객체로 변환
             dt_object = c['createdAt']
-            # KST (UTC+9)로 변환
             kst = timezone(timedelta(hours=9))
             c['createdAt'] = dt_object.astimezone(kst).strftime('%Y-%m-%d %H:%M:%S')
             c['code'] = doc.id
@@ -274,7 +273,6 @@ def submit_result():
     results = data.get('results', [])
     
     try:
-        # 1. 점수 및 메타인지 계산
         scores = { "정보 이해력": [], "논리 분석력": [], "단서 추론력": [], "비판적 사고력": [], "창의적 서술력": [] }
         metacognition = {"confident_correct": 0, "confident_error": 0, "unsure_correct": 0, "unsure_error": 0}
         total_time = sum(r.get('time', 0) for r in results)
@@ -297,15 +295,13 @@ def submit_result():
         final_scores = {cat: (sum(s) / len(s)) if s else 0 for cat, s in scores.items()}
         final_scores["문제 풀이 속도"] = max(0, 100 - (total_time / len(results) - 30)) if results else 0
 
-        # 2. AI 동적 리포트 생성
-        final_report_text = "결과 분석 중..." # Placeholder
+        final_report_text = "결과 분석 중..."
         try:
             final_report_text = generate_dynamic_report_from_ai(user_info.get('name'), final_scores, metacognition)
         except Exception as ai_e:
             print(f"AI 동적 리포트 생성 실패: {ai_e}")
             final_report_text = "AI 리포트 생성에 실패했습니다. 기본 리포트를 표시합니다."
 
-        # 3. 추천 활동 생성
         recommendations = []
         sorted_scores = sorted([(score, cat) for cat, score in final_scores.items() if cat != "문제 풀이 속도"])
         if sorted_scores:
@@ -314,7 +310,6 @@ def submit_result():
             elif weakest_category == "비판적 사고력": recommendations.append({"skill": "비판적 사고력 강화", "text": "이번 주 신문 사설을 하나 골라, 글쓴이의 주장에 동의하는 부분과 동의하지 않는 부분을 나누어 한 문단으로 요약해보세요."})
             elif weakest_category == "논리 분석력": recommendations.append({"skill": "논리 분석력 강화", "text": "글의 순서나 구조를 파악하는 연습을 해보세요. 짧은 뉴스 기사를 읽고 문단별로 핵심 내용을 요약하는 훈련이 도움이 될 것입니다."})
 
-        # 4. 데이터 저장 (Firestore & Google Sheets)
         timestamp = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S')
         report_data = {
             "userInfo": user_info, "results": results, "scores": final_scores,
@@ -332,7 +327,6 @@ def submit_result():
         ]
         sheet.append_row(sheet_row)
         
-        # 5. 프론트엔드로 결과 전송
         return jsonify({
             "success": True, "analysis": final_scores, "metacognition": metacognition,
             "overall_comment": final_report_text, "recommendations": recommendations
@@ -370,6 +364,7 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
 
 
 
