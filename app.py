@@ -10,60 +10,57 @@ from firebase_admin import credentials, firestore
 import gspread
 import re
 
-# Vertex AI SDK (최종 통신 방식)
+# Vertex AI SDK 및 Google 인증 라이브러리
 import vertexai
 from vertexai.generative_models import GenerativeModel
+from google.oauth2 import service_account
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
 
-# --- 2. 외부 서비스 초기화 ---
+# --- 2. 외부 서비스 초기화 (통합 인증 방식) ---
 db = None
 sheet = None
-GOOGLE_CLOUD_PROJECT = os.environ.get('GOOGLE_CLOUD_PROJECT')
-GOOGLE_CLOUD_LOCATION = os.environ.get('GOOGLE_CLOUD_LOCATION', 'us-central1')
+creds = None
+cred_dict = None
 
-# Vertex AI SDK 초기화
 try:
-    if not GOOGLE_CLOUD_PROJECT:
-        print("🚨 중요: GOOGLE_CLOUD_PROJECT 환경 변수가 설정되지 않았습니다.")
-    else:
-        vertexai.init(project=GOOGLE_CLOUD_PROJECT, location=GOOGLE_CLOUD_LOCATION)
-        print(f"Vertex AI SDK 초기화 성공 (Project: {GOOGLE_CLOUD_PROJECT}, Location: {GOOGLE_CLOUD_LOCATION})")
-except Exception as e:
-    print(f"Vertex AI SDK 초기화 실패: {e}")
-
-# Firebase 초기화
-try:
-    firebase_creds_json = os.environ.get('FIREBASE_CREDENTIALS_JSON')
-    if firebase_creds_json:
-        cred_dict = json.loads(firebase_creds_json)
-        cred = credentials.Certificate(cred_dict)
-    else:
-        cred = credentials.Certificate('firebase_credentials.json')
+    # Render 환경 변수에서 통합 인증 정보 로드 (가장 중요!)
+    google_creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
     
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred)
-    
-    db = firestore.client()
-    print("Firebase 초기화 성공")
-except Exception as e:
-    print(f"Firebase 초기화 실패: {e}")
-
-# Google Sheets 초기화
-try:
-    google_creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS_JSON')
-    SHEET_NAME = "독서력 진단 결과"
     if google_creds_json:
-        creds_dict = json.loads(google_creds_json)
-        gc = gspread.service_account_from_dict(creds_dict)
+        cred_dict = json.loads(google_creds_json)
+        creds = service_account.Credentials.from_service_account_info(cred_dict)
+        print("✅ 통합 인증 정보(GOOGLE_CREDENTIALS_JSON) 로드 성공")
     else:
-        gc = gspread.service_account(filename='google_sheets_credentials.json')
-        
-    sheet = gc.open(SHEET_NAME).sheet1
-    print(f"'{SHEET_NAME}' 시트 열기 성공")
+        # 로컬 개발 환경용 (credentials.json 파일 사용)
+        creds = service_account.Credentials.from_service_account_file('credentials.json')
+        with open('credentials.json', 'r') as f:
+            cred_dict = json.load(f)
+        print("✅ 통합 인증 정보(로컬 credentials.json) 로드 성공")
+
+    # Vertex AI SDK 초기화
+    PROJECT_ID = cred_dict.get('project_id')
+    LOCATION = "us-central1"
+    vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=creds)
+    print(f"✅ Vertex AI SDK 초기화 성공 (Project: {PROJECT_ID})")
+
+    # Firebase 초기화
+    firebase_cred = credentials.Certificate(cred_dict)
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(firebase_cred)
+    db = firestore.client()
+    print("✅ Firebase 초기화 성공")
+
+    # Google Sheets 초기화
+    gc = gspread.service_account_from_dict(cred_dict)
+    sheet = gc.open("독서력 진단 결과").sheet1
+    print("✅ Google Sheets ('독서력 진단 결과') 시트 열기 성공")
+
 except Exception as e:
-    print(f"Google Sheets 초기화 실패: {e}")
+    print(f"🚨 외부 서비스 초기화 실패: {e}")
+    print("🚨 GOOGLE_CREDENTIALS_JSON 환경 변수 또는 로컬 credentials.json 파일이 올바른지 확인해주세요.")
+
 
 # --- 3. 핵심 데이터 및 설정 ---
 CATEGORY_MAP = {
@@ -80,7 +77,9 @@ SCORE_CATEGORY_MAP = {
     "essay": "창의적 서술력"
 }
 
+
 # --- 4. AI 관련 함수 (Vertex AI SDK 방식) ---
+# (이하 모든 기능은 이전 최종본과 동일하게 완전하게 구현되어 있습니다)
 def get_detailed_prompt(category, age_group, text_content=None):
     if age_group == "10-13":
         level_instruction = "대한민국 초등학교 4~6학년 국어 교과서 수준의 어휘와 문장 구조를 사용해줘. '야기하다', '고찰하다' 같은 어려운 한자어는 '일으킨다', '살펴본다'처럼 쉬운 말로 풀어 써줘."
@@ -149,9 +148,6 @@ def get_detailed_prompt(category, age_group, text_content=None):
     return base_prompt
 
 def call_vertex_ai_sdk(prompt):
-    if not GOOGLE_CLOUD_PROJECT:
-        raise ValueError("Vertex AI를 사용하려면 GOOGLE_CLOUD_PROJECT가 설정되어야 합니다.")
-    
     model = GenerativeModel("gemini-1.5-flash-001")
     response = model.generate_content([prompt])
     
@@ -269,43 +265,7 @@ def get_test():
         print(f"'/api/get-test' 오류: {e}")
         return jsonify([]), 500
 
-def generate_final_report(user_name, results):
-    scores = { "정보 이해력": [], "논리 분석력": [], "단서 추론력": [], "비판적 사고력": [], "창의적 서술력": [] }
-    metacognition = {"confident_correct": 0, "confident_error": 0, "unsure_correct": 0, "unsure_error": 0}
-    total_time = 0
-    
-    for r in results:
-        total_time += r.get('time', 0)
-        score_category = SCORE_CATEGORY_MAP.get(r['question']['category'])
-        is_correct = (r['question']['type'] != 'essay' and r['answer'] == r['question']['answer']) or \
-                     (r['question']['type'] == 'essay' and len(r.get('answer','')) >= 100)
-        
-        if score_category:
-            scores[score_category].append(100 if is_correct else 0)
-
-        if r['confidence'] == 'confident':
-            metacognition['confident_correct' if is_correct else 'confident_error'] += 1
-        else:
-            metacognition['unsure_correct' if is_correct else 'unsure_error'] += 1
-
-    final_scores = {cat: (sum(s) / len(s)) if s else 0 for cat, s in scores.items()}
-    final_scores["문제 풀이 속도"] = max(0, 100 - (total_time / 15 * 5)) # 예시 계산
-
-    recommendations = []
-    sorted_scores = sorted([ (score, cat) for cat, score in final_scores.items() if cat != "문제 풀이 속도" ])
-    if sorted_scores:
-        weakest_category = sorted_scores[0][1]
-        if weakest_category == "단서 추론력": recommendations.append({"skill": "단서 추론력 강화", "text": "서점에서 셜록 홈즈 단편선 중 한 편을 골라 읽고, 주인공이 단서를 찾아내는 과정을 노트에 정리해보세요."})
-        elif weakest_category == "비판적 사고력": recommendations.append({"skill": "비판적 사고력 강화", "text": "이번 주 신문 사설을 하나 골라, 글쓴이의 주장에 동의하는 부분과 동의하지 않는 부분을 나누어 한 문단으로 요약해보세요."})
-        elif weakest_category == "논리 분석력": recommendations.append({"skill": "논리 분석력 강화", "text": "글의 순서나 구조를 파악하는 연습을 해보세요. 짧은 뉴스 기사를 읽고 문단별로 핵심 내용을 요약하는 훈련이 도움이 될 것입니다."})
-
-    # AI 동적 리포트 생성
-    final_report_text = generate_dynamic_report_from_ai(user_name, final_scores, metacognition)
-
-    return final_scores, metacognition, final_report_text, recommendations
-
 def generate_dynamic_report_from_ai(user_name, scores, metacognition):
-    if not GOOGLE_CLOUD_PROJECT: return "AI 리포트 생성에 실패했습니다. (프로젝트 ID 부재)"
     try:
         strongest_score = 0; strongest_category = "없음"; weakest_score = 100; weakest_category = "없음"
         for category, score in scores.items():
@@ -336,6 +296,40 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
     except Exception as e:
         print(f"AI 리포트 생성 중 오류: {e}")
         return "AI 리포트를 생성하는 중 오류가 발생했습니다."
+
+def generate_final_report(user_name, results):
+    scores = { "정보 이해력": [], "논리 분석력": [], "단서 추론력": [], "비판적 사고력": [], "창의적 서술력": [] }
+    metacognition = {"confident_correct": 0, "confident_error": 0, "unsure_correct": 0, "unsure_error": 0}
+    total_time = 0
+    
+    for r in results:
+        total_time += r.get('time', 0)
+        score_category = SCORE_CATEGORY_MAP.get(r['question']['category'])
+        is_correct = (r['question']['type'] != 'essay' and r['answer'] == r['question']['answer']) or \
+                     (r['question']['type'] == 'essay' and len(r.get('answer','')) >= 100)
+        
+        if score_category:
+            scores[score_category].append(100 if is_correct else 0)
+
+        if r['confidence'] == 'confident':
+            metacognition['confident_correct' if is_correct else 'confident_error'] += 1
+        else:
+            metacognition['unsure_correct' if is_correct else 'unsure_error'] += 1
+
+    final_scores = {cat: (sum(s) / len(s)) if s else 0 for cat, s in scores.items()}
+    final_scores["문제 풀이 속도"] = max(0, 100 - (total_time / 15 * 5)) # 예시 계산
+
+    recommendations = []
+    sorted_scores = sorted([ (score, cat) for cat, score in final_scores.items() if cat != "문제 풀이 속도" ])
+    if sorted_scores:
+        weakest_category = sorted_scores[0][1]
+        if weakest_category == "단서 추론력": recommendations.append({"skill": "단서 추론력 강화", "text": "서점에서 셜록 홈즈 단편선 중 한 편을 골라 읽고, 주인공이 단서를 찾아내는 과정을 노트에 정리해보세요."})
+        elif weakest_category == "비판적 사고력": recommendations.append({"skill": "비판적 사고력 강화", "text": "이번 주 신문 사설을 하나 골라, 글쓴이의 주장에 동의하는 부분과 동의하지 않는 부분을 나누어 한 문단으로 요약해보세요."})
+        elif weakest_category == "논리 분석력": recommendations.append({"skill": "논리 분석력 강화", "text": "글의 순서나 구조를 파악하는 연습을 해보세요. 짧은 뉴스 기사를 읽고 문단별로 핵심 내용을 요약하는 훈련이 도움이 될 것입니다."})
+
+    final_report_text = generate_dynamic_report_from_ai(user_name, final_scores, metacognition)
+
+    return final_scores, metacognition, final_report_text, recommendations
 
 @app.route('/api/submit-result', methods=['POST'])
 def submit_result():
@@ -370,4 +364,5 @@ def submit_result():
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
 
