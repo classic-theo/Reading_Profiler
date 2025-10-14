@@ -9,52 +9,40 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import gspread
 import re
-
-# Vertex AI SDK 및 Google 인증 라이브러리
-import vertexai
-from vertexai.generative_models import GenerativeModel
-from google.oauth2 import service_account
+import requests # 새로운 통신 방식을 위해 requests 라이브러리 사용
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
 
-# --- 2. 외부 서비스 초기화 (통합 인증 방식) ---
+# --- 2. 외부 서비스 초기화 (API 키 방식) ---
 db = None
 sheet = None
-creds = None
-cred_dict = None
+# Render.com 환경 변수에서 API 키 로드
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') 
 
 try:
+    # Firebase와 Google Sheets는 이전과 동일하게 서비스 계정(마스터키) 사용
     google_creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
-    
+    cred_dict = {}
     if google_creds_json:
         cred_dict = json.loads(google_creds_json)
-        creds = service_account.Credentials.from_service_account_info(cred_dict)
-        print("✅ 통합 인증 정보(GOOGLE_CREDENTIALS_JSON) 로드 성공")
+        
+    if cred_dict:
+        firebase_cred = credentials.Certificate(cred_dict)
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(firebase_cred)
+        db = firestore.client()
+        print("✅ Firebase 초기화 성공")
+
+        gc = gspread.service_account_from_dict(cred_dict)
+        sheet = gc.open("독서력 진단 결과").sheet1
+        print("✅ Google Sheets ('독서력 진단 결과') 시트 열기 성공")
     else:
-        # 로컬 개발 환경용 fallback
-        creds = service_account.Credentials.from_service_account_file('credentials.json')
-        with open('credentials.json', 'r') as f:
-            cred_dict = json.load(f)
-        print("✅ 통합 인증 정보(로컬 credentials.json) 로드 성공")
-
-    PROJECT_ID = os.environ.get('GOOGLE_CLOUD_PROJECT', cred_dict.get('project_id'))
-    LOCATION = os.environ.get('GOOGLE_CLOUD_LOCATION', "asia-northeast3")
-    vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=creds)
-    print(f"✅ Vertex AI SDK 초기화 성공 (Project: {PROJECT_ID}, Location: {LOCATION})")
-
-    firebase_cred = credentials.Certificate(cred_dict)
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(firebase_cred)
-    db = firestore.client()
-    print("✅ Firebase 초기화 성공")
-
-    gc = gspread.service_account_from_dict(cred_dict)
-    sheet = gc.open("독서력 진단 결과").sheet1
-    print("✅ Google Sheets ('독서력 진단 결과') 시트 열기 성공")
+        print("🚨 경고: GOOGLE_CREDENTIALS_JSON 환경 변수가 설정되지 않아 DB/Sheet 초기화 실패.")
 
 except Exception as e:
     print(f"🚨 외부 서비스 초기화 실패: {e}")
+
 
 # --- 3. 핵심 데이터 및 설정 ---
 CATEGORY_MAP = {
@@ -71,7 +59,7 @@ SCORE_CATEGORY_MAP = {
     "essay": "창의적 서술력"
 }
 
-# --- 4. AI 관련 함수 (Vertex AI SDK 방식) ---
+# --- 4. AI 관련 함수 (Generative Language API 방식) ---
 def get_detailed_prompt(category, age_group, text_content=None):
     if age_group == "10-13":
         level_instruction = "대한민국 초등학교 4~6학년 국어 교과서 수준의 어휘와 문장 구조를 사용해줘. '야기하다', '고찰하다' 같은 어려운 한자어는 '일으킨다', '살펴본다'처럼 쉬운 말로 풀어 써줘."
@@ -139,12 +127,25 @@ def get_detailed_prompt(category, age_group, text_content=None):
     
     return base_prompt
 
-def call_vertex_ai_sdk(prompt):
-    # 서울 리전에서 사용 가능한 최신 안정화 모델로 최종 수정
-    model = GenerativeModel("gemini-1.5-pro-preview-0514")
-    response = model.generate_content([prompt])
+def call_generative_language_api(prompt, model_name="gemini-1.5-pro-latest"):
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
     
-    raw_text = response.text
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    data = {'contents': [{'parts': [{'text': prompt}]}]}
+    
+    # AI 응답 시간이 길어질 수 있으므로 timeout을 120초로 넉넉하게 설정
+    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=120)
+    response.raise_for_status() # 200번대 응답이 아닐 경우 오류 발생
+    
+    result = response.json()
+    
+    if not result.get('candidates'):
+        raise ValueError(f"AI가 유효한 응답을 생성하지 못했습니다. 응답 내용: {result}")
+
+    raw_text = result['candidates'][0]['content']['parts'][0]['text']
+    
     match = re.search(r'```json\s*([\s\S]+?)\s*```', raw_text)
     if match:
         json_str = match.group(1)
@@ -153,7 +154,7 @@ def call_vertex_ai_sdk(prompt):
         try:
             return json.loads(raw_text)
         except json.JSONDecodeError:
-             raise ValueError(f"AI가 유효한 JSON을 생성하지 못했습니다: {raw_text}")
+            raise ValueError(f"AI가 유효한 JSON을 생성하지 못했습니다: {raw_text}")
 
 
 # --- 5. 라우팅 (API 엔드포인트) ---
@@ -199,7 +200,7 @@ def generate_question_from_ai():
     try:
         data = request.get_json()
         prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'))
-        question_data = call_vertex_ai_sdk(prompt)
+        question_data = call_generative_language_api(prompt)
         db.collection('questions').add(question_data)
         return jsonify({"success": True, "message": f"성공: AI가 '{question_data.get('title', '새로운')}' 문제를 생성했습니다."})
     except Exception as e:
@@ -212,7 +213,7 @@ def generate_question_from_text():
     try:
         data = request.get_json()
         prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'), data.get('textContent'))
-        question_data = call_vertex_ai_sdk(prompt)
+        question_data = call_generative_language_api(prompt)
         db.collection('questions').add(question_data)
         return jsonify({"success": True, "message": f"성공: AI가 텍스트 기반으로 '{question_data.get('title', '새로운')}' 문제를 생성했습니다."})
     except Exception as e:
@@ -357,13 +358,14 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]
 """
-    model = GenerativeModel("gemini-1.5-pro-preview-0514")
-    response = model.generate_content([prompt])
-    return response.text
+    # 동적 리포트 생성에는 Flash 모델을 사용하여 비용과 속도 균형 맞춤
+    return call_generative_language_api(prompt, model_name="gemini-1.5-flash-latest")
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    app.run(host='_main_', port=int(os.environ.get('PORT', 8080)))
+
+
 
 
 
