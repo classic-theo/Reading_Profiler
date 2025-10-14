@@ -39,7 +39,7 @@ try:
         print("✅ 통합 인증 정보(로컬 credentials.json) 로드 성공")
 
     PROJECT_ID = os.environ.get('GOOGLE_CLOUD_PROJECT', cred_dict.get('project_id'))
-    LOCATION = os.environ.get('GOOGLE_CLOUD_LOCATION', "asia-northeast3") # 환경 변수에서 위치 로드
+    LOCATION = os.environ.get('GOOGLE_CLOUD_LOCATION', "asia-northeast3")
     vertexai.init(project=PROJECT_ID, location=LOCATION, credentials=creds)
     print(f"✅ Vertex AI SDK 초기화 성공 (Project: {PROJECT_ID}, Location: {LOCATION})")
 
@@ -140,8 +140,8 @@ def get_detailed_prompt(category, age_group, text_content=None):
     return base_prompt
 
 def call_vertex_ai_sdk(prompt):
-    # 가장 안정적인 표준 모델로 최종 수정
-    model = GenerativeModel("gemini-1.0-pro")
+    # 서울 리전에서 사용 가능한 최신 안정화 모델로 최종 수정
+    model = GenerativeModel("gemini-1.5-pro-preview-0514")
     response = model.generate_content([prompt])
     
     raw_text = response.text
@@ -308,7 +308,7 @@ def submit_result():
             weakest_category = sorted_scores[0][1]
             if weakest_category == "단서 추론력": recommendations.append({"skill": "단서 추론력 강화", "text": "서점에서 셜록 홈즈 단편선 중 한 편을 골라 읽고, 주인공이 단서를 찾아내는 과정을 노트에 정리해보세요."})
             elif weakest_category == "비판적 사고력": recommendations.append({"skill": "비판적 사고력 강화", "text": "이번 주 신문 사설을 하나 골라, 글쓴이의 주장에 동의하는 부분과 동의하지 않는 부분을 나누어 한 문단으로 요약해보세요."})
-            elif weakest_category == "논리 분석력": recommendations.append({"skill": "논리 분석력 강화", "text": "글의 순서나 구조를 파악하는 연습을 해보세요. 짧은 뉴스 기사를 읽고 문별로 핵심 내용을 요약하는 훈련이 도움이 될 것입니다."})
+            elif weakest_category == "논리 분석력": recommendations.append({"skill": "논리 분석력 강화", "text": "글의 순서나 구조를 파악하는 연습을 해보세요. 짧은 뉴스 기사를 읽고 문단별로 핵심 내용을 요약하는 훈련이 도움이 될 것입니다."})
 
         timestamp = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S')
         report_data = {
@@ -357,13 +357,15 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]
 """
-    model = GenerativeModel("gemini-1.0-pro")
+    model = GenerativeModel("gemini-1.5-pro-preview-0514")
     response = model.generate_content([prompt])
     return response.text
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+
 
 
 
