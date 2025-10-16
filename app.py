@@ -124,7 +124,7 @@ def get_detailed_prompt(category, age_group, text_content=None):
     
     return base_prompt
 
-def call_generative_language_api(prompt, model_name="gemini-1.5-pro-latest"):
+def call_generative_language_api(prompt, model_name="gemini-pro"):
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
     
@@ -355,7 +355,7 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]
 """
-    return call_generative_language_api(prompt, model_name="gemini-1.5-flash-latest")
+    return call_generative_language_api(prompt, model_name="gemini-pro")
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
