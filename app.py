@@ -3,6 +3,7 @@ import json
 import random
 import string
 import time
+import logging
 from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, jsonify, request
 import firebase_admin
@@ -30,16 +31,16 @@ try:
         if not firebase_admin._apps:
             firebase_admin.initialize_app(firebase_cred)
         db = firestore.client()
-        print("✅ Firebase 초기화 성공")
+        app.logger.info("✅ Firebase 초기화 성공")
 
         gc = gspread.service_account_from_dict(cred_dict)
         sheet = gc.open("독서력 진단 결과").sheet1
-        print("✅ Google Sheets ('독서력 진단 결과') 시트 열기 성공")
+        app.logger.info("✅ Google Sheets ('독서력 진단 결과') 시트 열기 성공")
     else:
-        print("🚨 경고: GOOGLE_CREDENTIALS_JSON 환경 변수가 설정되지 않아 DB/Sheet 초기화 실패.")
+        app.logger.warning("🚨 경고: GOOGLE_CREDENTIALS_JSON 환경 변수가 설정되지 않아 DB/Sheet 초기화 실패.")
 
 except Exception as e:
-    print(f"🚨 외부 서비스 초기화 실패: {e}")
+    app.logger.error(f"🚨 외부 서비스 초기화 실패: {e}", exc_info=True)
 
 # --- 3. 핵심 데이터 및 설정 ---
 CATEGORY_MAP = {
@@ -124,13 +125,11 @@ def get_detailed_prompt(category, age_group, text_content=None):
     
     return base_prompt
 
-def call_generative_language_api(prompt, model_name="gemini-pro"):
+def call_generative_language_api(prompt, model_name="gemini-2.5-pro"):
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
     
-    # --- ✨✨✨ 여기가 수정된 부분입니다 ✨✨✨ ---
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
-    
+    url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
     data = {'contents': [{'parts': [{'text': prompt}]}]}
     
@@ -188,27 +187,51 @@ def get_codes():
             codes.append(c)
         return jsonify(codes)
     except Exception as e:
-        print(f"코드 조회 오류: {e}")
+        app.logger.error(f"코드 조회 오류: {e}", exc_info=True)
         return jsonify([]), 500
 
 @app.route('/api/generate-question', methods=['POST'])
 def generate_question_from_ai():
-    if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+    if not db:
+        app.logger.error("DB 연결 실패: Firestore 클라이언트가 초기화되지 않았습니다.")
+        return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+
+    # 1. 입력값 검증
+    data = request.get_json()
+    if not data or 'category' not in data or 'ageGroup' not in data:
+        app.logger.warning(f"잘못된 요청: 필수 파라미터 누락. 요청 데이터: {data}")
+        return jsonify({"success": False, "message": "category와 ageGroup은 필수 항목입니다."}), 400
+
+    category = data.get('category')
+    age_group = data.get('ageGroup')
+
     try:
-        # --- ✨ 테스트를 위해 임시로 단순한 프롬프트를 사용합니다 ---
-        test_prompt = "세상에서 가장 짧은 과학 소설을 한 문장으로 써줘."
-        print(f"테스트 프롬프트 전송: {test_prompt}")
+        # 2. AI 프롬프트 생성 및 API 호출
+        app.logger.info(f"AI 문제 생성을 시작합니다. Category: {category}, Age: {age_group}")
+        prompt = get_detailed_prompt(category, age_group)
+        question_data = call_generative_language_api(prompt)
 
-        # call_generative_language_api 함수를 직접 호출합니다.
-        generated_text = call_generative_language_api(test_prompt)
+        # 3. AI 응답 데이터 검증
+        required_keys = ['passage', 'question', 'options', 'answer']
+        if not all(key in question_data for key in required_keys):
+            app.logger.error(f"AI 응답 데이터 검증 실패: 필수 키 누락. 응답: {question_data}")
+            raise ValueError("AI가 생성한 데이터에 필수 항목이 누락되었습니다.")
 
-        print(f"AI 응답 성공: {generated_text}")
-        # 테스트 성공 메시지를 반환합니다. 데이터베이스 저장은 생략합니다.
-        return jsonify({"success": True, "message": f"테스트 성공! AI 응답: {generated_text}"})
+        # 4. 데이터베이스 저장
+        db.collection('questions').add(question_data)
+        title = question_data.get('title', '새로운')
+        app.logger.info(f"성공: AI가 '{title}' 문제를 생성하여 DB에 저장했습니다.")
+        
+        return jsonify({"success": True, "message": f"성공: AI가 '{title}' 문제를 생성했습니다."})
 
+    except ValueError as ve:
+        # 데이터 검증 실패 또는 AI 응답 파싱 실패 시
+        app.logger.error(f"데이터 처리 오류: {ve}")
+        return jsonify({"success": False, "message": f"데이터 처리 중 오류 발생: {ve}"}), 500
     except Exception as e:
-        print(f"AI 문제 생성 중 오류: {e}")
-        return jsonify({"success": False, "message": f"AI 문제 생성 중 오류 발생: {e}"}), 500
+        # 그 외 모든 예외 처리
+        app.logger.error(f"AI 문제 생성 중 심각한 오류 발생: {e}", exc_info=True)
+        return jsonify({"success": False, "message": f"서버 내부 오류가 발생했습니다: {e}"}), 500
 
 @app.route('/api/generate-question-from-text', methods=['POST'])
 def generate_question_from_text():
@@ -220,7 +243,7 @@ def generate_question_from_text():
         db.collection('questions').add(question_data)
         return jsonify({"success": True, "message": f"성공: AI가 텍스트 기반으로 '{question_data.get('title', '새로운')}' 문제를 생성했습니다."})
     except Exception as e:
-        print(f"텍스트 기반 문제 생성 중 오류: {e}")
+        app.logger.error(f"텍스트 기반 문제 생성 중 오류: {e}", exc_info=True)
         return jsonify({"success": False, "message": f"텍스트 기반 문제 생성 중 오류 발생: {e}"}), 500
 
 @app.route('/api/validate-code', methods=['POST'])
@@ -262,10 +285,10 @@ def get_test():
              q['category_kr'] = CATEGORY_MAP.get(q.get('category'), '기타')
         
         random.shuffle(questions)
-        print(f"문제 생성 완료: {len(questions)}개 문항 ({age_group} 대상)")
+        app.logger.info(f"문제 생성 완료: {len(questions)}개 문항 ({age_group} 대상)")
         return jsonify(questions)
     except Exception as e:
-        print(f"'/api/get-test' 오류: {e}")
+        app.logger.error(f"'/api/get-test' 오류: {e}", exc_info=True)
         return jsonify([]), 500
 
 @app.route('/api/submit-result', methods=['POST'])
@@ -303,7 +326,7 @@ def submit_result():
         try:
             final_report_text = generate_dynamic_report_from_ai(user_info.get('name'), final_scores, metacognition)
         except Exception as ai_e:
-            print(f"AI 동적 리포트 생성 실패: {ai_e}")
+            app.logger.error(f"AI 동적 리포트 생성 실패: {ai_e}", exc_info=True)
             final_report_text = "AI 리포트 생성에 실패했습니다. 기본 리포트를 표시합니다."
 
         recommendations = []
@@ -336,7 +359,7 @@ def submit_result():
             "overall_comment": final_report_text, "recommendations": recommendations
         })
     except Exception as e:
-        print(f"결과 처리 중 오류: {e}")
+        app.logger.error(f"결과 처리 중 오류: {e}", exc_info=True)
         return jsonify({"success": False, "message": f"결과를 전송하는 중 오류가 발생했습니다: {e}"}), 500
 
 def generate_dynamic_report_from_ai(user_name, scores, metacognition):
@@ -361,7 +384,7 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]
 """
-    return call_generative_language_api(prompt, model_name="gemini-pro")
+    return call_generative_language_api(prompt, model_name="gemini-2.5-pro")
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
