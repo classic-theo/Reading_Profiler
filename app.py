@@ -60,7 +60,6 @@ SCORE_CATEGORY_MAP = {
 
 # --- 4. AI 관련 함수 ---
 def get_detailed_prompt(category, age_group, text_content=None, difficulty='표준'):
-    # ✨ 수정된 부분: 난이도별 지시사항 추가
     difficulty_instruction = ""
     if difficulty == '기초':
         difficulty_instruction = "전체적으로 문장의 길이를 짧게 하고, 쉬운 어휘를 사용해줘."
@@ -78,12 +77,7 @@ def get_detailed_prompt(category, age_group, text_content=None, difficulty='표�
         passage_length = "최소 3개 문단, 350자 이상"
 
     type_instruction = ""
-    topics = {
-        "default": ["흥미로운 동물 상식", "일상 속 과학 원리", "역사 속 인물 이야기"],
-        "info": ["환경 보호의 중요성", "새로운 기술 트렌드", "건강한 생활 습관"],
-        "logic": ["사회 현상 분석", "신문 사설", "주장이 담긴 칼럼"],
-        "inference": ["과학 탐사(우주, 해양)", "최신 뉴스 기사의 이면", "미스터리한 사건의 재구성"]
-    }
+    topics = { "default": ["흥미로운 동물 상식", "일상 속 과학 원리", "역사 속 인물 이야기"], "info": ["환경 보호의 중요성", "새로운 기술 트렌드", "건강한 생활 습관"], "logic": ["사회 현상 분석", "신문 사설", "주장이 담긴 칼럼"], "inference": ["과학 탐사(우주, 해양)", "최신 뉴스 기사의 이면", "미스터리한 사건의 재구성"] }
     
     if text_content:
         type_instruction = f"주어진 텍스트 '{text_content[:200]}...'를 바탕으로, 지문, 질문, 보기를 모두 창작해줘."
@@ -134,11 +128,7 @@ def get_detailed_prompt(category, age_group, text_content=None, difficulty='표�
         base_prompt = base_prompt.replace('6. JSON 형식 준수:', f'{pronoun_instruction}\n6. JSON 형식 준수:')
 
     if category in ["sentence_ordering", "paragraph_ordering"]:
-        base_prompt = base_prompt.replace('4. 객관식 보기 (options):', '# 객관식 보기 없음') \
-                                 .replace('"options": ["보기1", "보기2", "보기3", "보기4"]', '"options": []') \
-                                 .replace('"answer": "정답 보기"', '"answer": ""') \
-                                 .replace('"distractor_explanation": "매력적인 오답에 대한 해설"', '"distractor_explanation": ""') \
-                                 .replace('"type": "multiple_choice"', '"type": "essay"')
+        base_prompt = base_prompt.replace('4. 객관식 보기 (options):', '# 객관식 보기 없음').replace('"options": ["보기1", "보기2", "보기3", "보기4"]', '"options": []').replace('"answer": "정답 보기"', '"answer": ""').replace('"distractor_explanation": "매력적인 오답에 대한 해설"', '"distractor_explanation": ""').replace('"type": "multiple_choice"', '"type": "essay"')
 
     if category == "essay":
         base_prompt = base_prompt.replace('4. 객관식 보기 (options):', '# 객관식 보기 없음').replace('"options": ["보기1", "보기2", "보기3", "보기4"]', '"options": []').replace('"answer": "정답 보기"', '"answer": ""').replace('"distractor_explanation": "매력적인 오답에 대한 해설"', '"distractor_explanation": ""').replace('"type": "multiple_choice"', '"type": "essay"')
@@ -146,23 +136,15 @@ def get_detailed_prompt(category, age_group, text_content=None, difficulty='표�
     return base_prompt
 
 def call_ai_for_json(prompt, model_name="gemini-2.5-pro"):
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
-    
+    if not GEMINI_API_KEY: raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
     url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
     data = {'contents': [{'parts': [{'text': prompt}]}]}
-    
     response = requests.post(url, headers=headers, data=json.dumps(data), timeout=180)
     response.raise_for_status()
-    
     result = response.json()
-    
-    if not result.get('candidates'):
-        raise ValueError(f"AI가 유효한 응답을 생성하지 못했습니다. 응답 내용: {result}")
-
+    if not result.get('candidates'): raise ValueError(f"AI가 유효한 응답을 생성하지 못했습니다. 응답 내용: {result}")
     raw_text = result['candidates'][0]['content']['parts'][0]['text']
-    
     match = re.search(r'```json\s*([\s\S]+?)\s*```', raw_text)
     if match:
         json_str = match.group(1)
@@ -174,21 +156,14 @@ def call_ai_for_json(prompt, model_name="gemini-2.5-pro"):
             raise ValueError(f"AI가 유효한 JSON을 생성하지 못했습니다: {raw_text}")
 
 def call_ai_for_text(prompt, model_name="gemini-2.5-pro"):
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
-    
+    if not GEMINI_API_KEY: raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
     url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
     data = {'contents': [{'parts': [{'text': prompt}]}]}
-    
     response = requests.post(url, headers=headers, data=json.dumps(data), timeout=180)
     response.raise_for_status()
-    
     result = response.json()
-    
-    if not result.get('candidates'):
-        raise ValueError(f"AI가 유효한 응답을 생성하지 못했습니다. 응답 내용: {result}")
-
+    if not result.get('candidates'): raise ValueError(f"AI가 유효한 응답을 생성하지 못했습니다. 응답 내용: {result}")
     return result['candidates'][0]['content']['parts'][0]['text']
 
 # --- 5. 라우팅 (API 엔드포인트) ---
@@ -199,7 +174,6 @@ def serve_index(): return render_template('index.html')
 def serve_admin(): return render_template('admin.html')
 
 # --- 관리자 페이지 API ---
-
 @app.route('/api/generate-code', methods=['POST'])
 def generate_code():
     if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
@@ -249,11 +223,11 @@ def generate_question_set():
             app.logger.info(f"일괄 생성 중: Category: {category}, Age: {age_group}, Difficulty: {difficulty}")
             prompt = get_detailed_prompt(category, age_group, text_content, difficulty)
             question_data = call_ai_for_json(prompt)
+            question_data['difficulty'] = difficulty # 난이도 정보 추가
 
             required_keys = ['passage', 'question']
             if question_data.get('type') == 'multiple_choice':
                 required_keys.extend(['options', 'answer'])
-
             if not all(key in question_data for key in required_keys):
                  raise ValueError("AI 생성 데이터에 필수 키 누락")
 
@@ -297,8 +271,38 @@ def delete_questions():
         app.logger.error(f"문제 삭제 중 오류 발생: {e}", exc_info=True)
         return jsonify({"success": False, "message": "문제 삭제 중 오류가 발생했습니다."}), 500
 
-# --- 사용자 페이지 API ---
+@app.route('/api/regenerate-question', methods=['POST'])
+def regenerate_question():
+    if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+    data = request.get_json()
+    question_id = data.get('id')
+    if not question_id:
+        return jsonify({"success": False, "message": "ID가 필요합니다."}), 400
+    
+    try:
+        doc_ref = db.collection('questions').document(question_id)
+        old_doc = doc_ref.get()
+        if not old_doc.exists:
+            return jsonify({"success": False, "message": "문서를 찾을 수 없습니다."}), 404
+        
+        old_data = old_doc.to_dict()
+        category = old_data.get('category')
+        age_group = old_data.get('targetAge')
+        difficulty = old_data.get('difficulty', '표준') # 기존 난이도 유지
 
+        prompt = get_detailed_prompt(category, age_group, None, difficulty)
+        new_question_data = call_ai_for_json(prompt)
+        new_question_data['difficulty'] = difficulty
+
+        doc_ref.update(new_question_data)
+        app.logger.info(f"문제 재성공 성공: ID {question_id}")
+        return jsonify({"success": True, "message": "문제를 성공적으로 다시 생성했습니다."})
+
+    except Exception as e:
+        app.logger.error(f"문제 재성성 중 오류: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "문제 재성성 중 오류가 발생했습니다."})
+
+# --- 사용자 페이지 API ---
 @app.route('/api/validate-code', methods=['POST'])
 def validate_code():
     if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
@@ -319,15 +323,11 @@ def get_test():
         if 14 <= age <= 16: age_group = "14-16"
         elif 17 <= age <= 19: age_group = "17-19"
 
-        test_structure = {
-            "title": 2, "theme": 2, "argument": 2, "inference": 2,
-            "pronoun": 2, "sentence_ordering": 2, "paragraph_ordering": 2, "essay": 1
-        }
+        test_structure = { "title": 2, "theme": 2, "argument": 2, "inference": 2, "pronoun": 2, "sentence_ordering": 2, "paragraph_ordering": 2, "essay": 1 }
         questions = []
         for category, needed_count in test_structure.items():
             query = db.collection('questions').where(filter=FieldFilter('targetAge', '==', age_group)).where(filter=FieldFilter('category', '==', category))
             docs = query.stream()
-
             potential_questions = []
             for doc in docs:
                 q = doc.to_dict()
@@ -354,33 +354,23 @@ def get_test():
 @app.route('/api/submit-result', methods=['POST'])
 def submit_result():
     if not db or not sheet: return jsonify({"success": False, "message": "DB 또는 시트 연결 실패"}), 500
-    
     data = request.get_json()
     user_info = data.get('userInfo', {})
     results = data.get('results', [])
     
     try:
         scores = { "정보 이해력": [], "논리 분석력": [], "단서 추론력": [], "비판적 사고력": [], "창의적 서술력": [] }
-        
-        metacognition_details = {
-            'confident_correct': [], 'confident_error': [],
-            'unsure_correct': [], 'unsure_error': []
-        }
-        
+        metacognition_details = { 'confident_correct': [], 'confident_error': [], 'unsure_correct': [], 'unsure_error': [] }
         total_time = sum(r.get('time', 0) for r in results)
         correct_count = 0
         
         for r in results:
             score_category = SCORE_CATEGORY_MAP.get(r['question']['category'])
-            is_correct = (r['question'].get('type') != 'essay' and r['answer'] == r['question']['answer']) or \
-                         (r['question'].get('type') == 'essay' and len(r.get('answer', '')) >= 50)
-            
+            is_correct = (r['question'].get('type') != 'essay' and r['answer'] == r['question']['answer']) or (r['question'].get('type') == 'essay' and len(r.get('answer', '')) >= 50)
             if is_correct: correct_count += 1
             if score_category: scores[score_category].append(100 if is_correct else 0)
-
             confidence = r.get('confidence', 'unsure')
             time_spent = r.get('time', 0)
-            
             if confidence == 'confident':
                 metacognition_details['confident_correct' if is_correct else 'confident_error'].append(time_spent)
             else:
@@ -388,12 +378,9 @@ def submit_result():
 
         final_scores = {cat: (sum(s) / len(s)) if s else 0 for cat, s in scores.items()}
         final_scores["문제 풀이 속도"] = max(0, 100 - (total_time / len(results) - 30)) if results else 0
-        
         metacognition_summary = {
-            'confident_correct': len(metacognition_details['confident_correct']),
-            'confident_error': len(metacognition_details['confident_error']),
-            'unsure_correct': len(metacognition_details['unsure_correct']),
-            'unsure_error': len(metacognition_details['unsure_error']),
+            'confident_correct': len(metacognition_details['confident_correct']), 'confident_error': len(metacognition_details['confident_error']),
+            'unsure_correct': len(metacognition_details['unsure_correct']), 'unsure_error': len(metacognition_details['unsure_error']),
             'avg_time_cc': sum(metacognition_details['confident_correct']) / len(metacognition_details['confident_correct']) if metacognition_details['confident_correct'] else 0,
             'avg_time_ce': sum(metacognition_details['confident_error']) / len(metacognition_details['confident_error']) if metacognition_details['confident_error'] else 0,
             'avg_time_uc': sum(metacognition_details['unsure_correct']) / len(metacognition_details['unsure_correct']) if metacognition_details['unsure_correct'] else 0,
@@ -402,13 +389,7 @@ def submit_result():
 
         final_report_text = "결과 분석 중..."
         try:
-            final_report_text = generate_dynamic_report_from_ai(
-                user_info.get('name'), 
-                final_scores, 
-                metacognition_summary,
-                len(results),
-                correct_count
-            )
+            final_report_text = generate_dynamic_report_from_ai(user_info.get('name'), final_scores, metacognition_summary, len(results), correct_count)
         except Exception as ai_e:
             app.logger.error(f"AI 동적 리포트 생성 실패: {ai_e}", exc_info=True)
             final_report_text = "AI 리포트 생성에 실패했습니다. 기본 리포트를 표시합니다."
@@ -422,26 +403,13 @@ def submit_result():
             elif weakest_category == "논리 분석력": recommendations.append({"skill": "논리 분석력 강화", "text": "글의 순서나 구조를 파악하는 연습을 해보세요. 짧은 뉴스 기사를 읽고 문단별로 핵심 내용을 요약하는 훈련이 도움이 될 것입니다."})
 
         timestamp = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S')
-        report_data = {
-            "userInfo": user_info, "results": results, "scores": final_scores,
-            "metacognition": metacognition_summary, "reportText": final_report_text,
-            "recommendations": recommendations, "timestamp": timestamp
-        }
+        report_data = { "userInfo": user_info, "results": results, "scores": final_scores, "metacognition": metacognition_summary, "reportText": final_report_text, "recommendations": recommendations, "timestamp": timestamp }
         db.collection('reports').add(report_data)
 
-        sheet_row = [
-            timestamp, user_info.get('name'), user_info.get('age'), user_info.get('code'),
-            final_scores.get('정보 이해력', 0), final_scores.get('논리 분석력', 0),
-            final_scores.get('단서 추론력', 0), final_scores.get('비판적 사고력', 0),
-            final_scores.get('창의적 서술력', 0), final_scores.get('문제 풀이 속도', 0),
-            correct_count, len(results), total_time
-        ]
+        sheet_row = [ timestamp, user_info.get('name'), user_info.get('age'), user_info.get('code'), final_scores.get('정보 이해력', 0), final_scores.get('논리 분석력', 0), final_scores.get('단서 추론력', 0), final_scores.get('비판적 사고력', 0), final_scores.get('창의적 서술력', 0), final_scores.get('문제 풀이 속도', 0), correct_count, len(results), total_time ]
         sheet.append_row(sheet_row)
         
-        return jsonify({
-            "success": True, "analysis": final_scores, "metacognition": metacognition_summary,
-            "overall_comment": final_report_text, "recommendations": recommendations
-        })
+        return jsonify({ "success": True, "analysis": final_scores, "metacognition": metacognition_summary, "overall_comment": final_report_text, "recommendations": recommendations })
     except Exception as e:
         app.logger.error(f"결과 처리 중 오류: {e}", exc_info=True)
         return jsonify({"success": False, "message": f"결과를 전송하는 중 오류가 발생했습니다: {e}"}), 500
@@ -471,30 +439,14 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition, total_ques
 {student_data_summary}
 
 [보고서 작성 규칙]
-1.  **서론: 전체 결과 요약**
-    - 학생의 이름을 부르며 시작합니다.
-    - 총 문항 수와 정답 수를 바탕으로 전체적인 성취도를 간략히 언급합니다.
-    - 학생의 가장 뛰어난 강점 능력을 칭찬하며 긍정적인 분위기를 형성합니다.
-
-2.  **본론 1: 데이터 기반 능력 심층 분석**
-    - '강점 능력'이 왜 뛰어난지 데이터에 근거하여 분석해주세요. (예: "정보 이해력 점수가 높고, 관련 문항을 빠르고 자신있게 풀어낸 것으로 보아, 글의 핵심 내용을 정확하고 신속하게 파악하는 능력이 탁월합니다.")
-    - '보완이 필요한 능력'에 대해서는 '성장 기회'로 표현하며, 구체적인 데이터로 원인을 진단해주세요. (예: "비판적 사고력 문항에서 오답이 많고 풀이 시간이 길었던 점은, 글에 숨겨진 의도를 파악하거나 다른 관점에서 생각하는 연습이 더 필요하다는 신호입니다.")
-
-3.  **본론 2: 메타인지 분석 및 학습 전략 코칭**
-    - '메타인지 상세 분석' 데이터를 활용하여 학생의 학습 습관을 진단합니다.
-    - **'오개념(자신있게 오답)'** 항목이 1개 이상 있다면, 가장 시급하게 교정해야 할 부분임을 강조하세요. 잘못된 지식이나 습관을 확신하고 있을 가능성이 높으므로, 개념을 다시 꼼꼼히 학습할 것을 조언합니다.
-    - **'성장(고민 후 정답)'** 항목은 칭찬의 포인트입니다. 어려운 문제도 포기하지 않고 해결해내는 끈기와 잠재력을 칭찬해주세요.
-    - 풀이 시간 데이터를 종합적으로 활용하여 학생의 독서 스타일(예: 신중형, 속독형)을 간략히 언급해볼 수 있습니다.
-
-4.  **결론: 성장을 위한 구체적인 코칭 가이드**
-    - 분석 내용을 종합하여, 학생의 성장을 위한 1~2가지 핵심 조언을 제시합니다.
-    - **(독서 추천)** 학생의 '보완점'을 길러줄 수 있는 책의 종류(장르)를 추천하고, 왜 그 책이 도움이 되는지, 어느 정도 분량(예: 200페이지 내외)의 책부터 시작하면 좋을지 구체적으로 제안해주세요.
-    - 학생에게 동기를 부여할 수 있는 긍정적인 비전을 제시하며 마무리합니다. (예: "OOO님의 뛰어난 정보 이해력은 미래에 훌륭한 연구원이나 데이터 분석가로 성장할 수 있는 중요한 자질입니다.")
-
+1.  **서론: 전체 결과 요약**: 학생의 이름을 부르며 시작하고, 총 문항 수와 정답 수를 바탕으로 전체적인 성취도를 간략히 언급합니다. 학생의 가장 뛰어난 강점 능력을 칭찬하며 긍정적인 분위기를 형성합니다.
+2.  **본론 1: 데이터 기반 능력 심층 분석**: '강점 능력'이 왜 뛰어난지 데이터에 근거하여 분석해주세요. (예: "정보 이해력 점수가 높고, 관련 문항을 빠르고 자신있게 풀어낸 것으로 보아, 글의 핵심 내용을 정확하고 신속하게 파악하는 능력이 탁월합니다.") '보완이 필요한 능력'에 대해서는 '성장 기회'로 표현하며, 구체적인 데이터로 원인을 진단해주세요. (예: "비판적 사고력 문항에서 오답이 많고 풀이 시간이 길었던 점은, 글에 숨겨진 의도를 파악하거나 다른 관점에서 생각하는 연습이 더 필요하다는 신호입니다.")
+3.  **본론 2: 메타인지 분석 및 학습 전략 코칭**: '메타인지 상세 분석' 데이터를 활용하여 학생의 학습 습관을 진단합니다. **'오개념(자신있게 오답)'** 항목이 1개 이상 있다면, 가장 시급하게 교정해야 할 부분임을 강조하세요. 잘못된 지식이나 습관을 확신하고 있을 가능성이 높으므로, 개념을 다시 꼼꼼히 학습할 것을 조언합니다. **'성장(고민 후 정답)'** 항목은 칭찬의 포인트입니다. 어려운 문제도 포기하지 않고 해결해내는 끈기와 잠재력을 칭찬해주세요.
+4.  **결론: 성장을 위한 구체적인 코칭 가이드**: 분석 내용을 종합하여, 학생의 성장을 위한 1~2가지 핵심 조언을 제시합니다. **(독서 추천)** 학생의 '보완점'을 길러줄 수 있는 책의 종류(장르)를 추천하고, 왜 그 책이 도움이 되는지, 어느 정도 분량(예: 200페이지 내외)의 책부터 시작하면 좋을지 구체적으로 제안해주세요. 학생에게 동기를 부여할 수 있는 긍정적인 비전을 제시하며 마무리합니다.
 5.  **형식:** 전체 내용은 가독성을 위해 Markdown(#, ##, **)을 사용하여 명확하게 구조화해주세요.
 """
     return call_ai_for_text(prompt, model_name="gemini-2.5-pro")
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
-    app.run(host='0.0.0.host', port=int(os.environ.get('PORT', 8080)))
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
