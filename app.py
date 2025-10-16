@@ -59,7 +59,14 @@ SCORE_CATEGORY_MAP = {
 }
 
 # --- 4. AI 관련 함수 ---
-def get_detailed_prompt(category, age_group, text_content=None):
+def get_detailed_prompt(category, age_group, text_content=None, difficulty='표준'):
+    # ✨ 수정된 부분: 난이도별 지시사항 추가
+    difficulty_instruction = ""
+    if difficulty == '기초':
+        difficulty_instruction = "전체적으로 문장의 길이를 짧게 하고, 쉬운 어휘를 사용해줘."
+    elif difficulty == '심화':
+        difficulty_instruction = "문장의 구조를 복잡하게 만들고, 추상적이거나 전문적인 어휘를 일부 포함해줘."
+
     if age_group == "10-13":
         level_instruction = "대한민국 초등학교 4~6학년 국어 교과서 수준의 어휘와 문장 구조를 사용해줘. '야기하다', '고찰하다' 같은 어려운 한자어는 '일으킨다', '살펴본다'처럼 쉬운 말로 풀어 써줘."
         passage_length = "최소 2개 문단, 150자 이상"
@@ -103,7 +110,7 @@ def get_detailed_prompt(category, age_group, text_content=None):
 
 [규칙]
 1. 대상 연령: {age_group}세
-2. 언어 및 난이도: {level_instruction}
+2. 언어 및 난이도: {level_instruction} {difficulty_instruction}
 3. 지문 및 문제 구성: {type_instruction}
 4. 객관식 보기 (options):
    - 반드시 4개의 보기를 만들어줘.
@@ -146,7 +153,7 @@ def call_ai_for_json(prompt, model_name="gemini-2.5-pro"):
     headers = {'Content-Type': 'application/json'}
     data = {'contents': [{'parts': [{'text': prompt}]}]}
     
-    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=120)
+    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=180)
     response.raise_for_status()
     
     result = response.json()
@@ -174,7 +181,7 @@ def call_ai_for_text(prompt, model_name="gemini-2.5-pro"):
     headers = {'Content-Type': 'application/json'}
     data = {'contents': [{'parts': [{'text': prompt}]}]}
     
-    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=120)
+    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=180)
     response.raise_for_status()
     
     result = response.json()
@@ -190,6 +197,8 @@ def serve_index(): return render_template('index.html')
 
 @app.route('/admin')
 def serve_admin(): return render_template('admin.html')
+
+# --- 관리자 페이지 API ---
 
 @app.route('/api/generate-code', methods=['POST'])
 def generate_code():
@@ -221,57 +230,74 @@ def get_codes():
         app.logger.error(f"코드 조회 오류: {e}", exc_info=True)
         return jsonify([]), 500
 
-@app.route('/api/generate-question', methods=['POST'])
-def generate_question_from_ai():
-    if not db:
-        app.logger.error("DB 연결 실패: Firestore 클라이언트가 초기화되지 않았습니다.")
-        return jsonify({"success": False, "message": "DB 연결 실패"}), 500
-
-    data = request.get_json()
-    if not data or 'category' not in data or 'ageGroup' not in data:
-        app.logger.warning(f"잘못된 요청: 필수 파라미터 누락. 요청 데이터: {data}")
-        return jsonify({"success": False, "message": "category와 ageGroup은 필수 항목입니다."}), 400
-
-    category = data.get('category')
-    age_group = data.get('ageGroup')
-
-    try:
-        app.logger.info(f"AI 문제 생성을 시작합니다. Category: {category}, Age: {age_group}")
-        prompt = get_detailed_prompt(category, age_group)
-        question_data = call_ai_for_json(prompt)
-
-        required_keys = ['passage', 'question', 'options', 'answer']
-        # 'essay' 유형은 options와 answer가 비어있으므로 검증에서 제외
-        if question_data.get('type') != 'essay':
-            if not all(key in question_data for key in required_keys):
-                app.logger.error(f"AI 응답 데이터 검증 실패: 필수 키 누락. 응답: {question_data}")
-                raise ValueError("AI가 생성한 데이터에 필수 항목이 누락되었습니다.")
-
-        db.collection('questions').add(question_data)
-        title = question_data.get('title', '새로운')
-        app.logger.info(f"성공: AI가 '{title}' 문제를 생성하여 DB에 저장했습니다.")
-        
-        return jsonify({"success": True, "message": f"성공: AI가 '{title}' 문제를 생성했습니다."})
-
-    except ValueError as ve:
-        app.logger.error(f"데이터 처리 오류: {ve}")
-        return jsonify({"success": False, "message": f"데이터 처리 중 오류 발생: {ve}"}), 500
-    except Exception as e:
-        app.logger.error(f"AI 문제 생성 중 심각한 오류 발생: {e}", exc_info=True)
-        return jsonify({"success": False, "message": f"서버 내부 오류가 발생했습니다: {e}"}), 500
-
-@app.route('/api/generate-question-from-text', methods=['POST'])
-def generate_question_from_text():
+@app.route('/api/generate-question-set', methods=['POST'])
+def generate_question_set():
     if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+    data = request.get_json()
+    if not data or 'ageGroup' not in data or 'difficulty' not in data:
+        return jsonify({"success": False, "message": "ageGroup과 difficulty는 필수 항목입니다."}), 400
+
+    age_group = data.get('ageGroup')
+    difficulty = data.get('difficulty')
+    text_content = data.get('textContent', None)
+    
+    categories_to_generate = ["title", "theme", "argument", "inference", "pronoun", "sentence_ordering", "paragraph_ordering"]
+    
+    results = []
+    for category in categories_to_generate:
+        try:
+            app.logger.info(f"일괄 생성 중: Category: {category}, Age: {age_group}, Difficulty: {difficulty}")
+            prompt = get_detailed_prompt(category, age_group, text_content, difficulty)
+            question_data = call_ai_for_json(prompt)
+
+            required_keys = ['passage', 'question']
+            if question_data.get('type') == 'multiple_choice':
+                required_keys.extend(['options', 'answer'])
+
+            if not all(key in question_data for key in required_keys):
+                 raise ValueError("AI 생성 데이터에 필수 키 누락")
+
+            db.collection('questions').add(question_data)
+            results.append({"category": CATEGORY_MAP.get(category), "status": "성공"})
+        except Exception as e:
+            app.logger.error(f"'{category}' 유형 생성 실패: {e}")
+            results.append({"category": CATEGORY_MAP.get(category), "status": "실패", "reason": str(e)})
+
+    return jsonify({"success": True, "message": "문제 일괄 생성이 완료되었습니다.", "results": results})
+
+@app.route('/api/get-questions', methods=['GET'])
+def get_questions():
+    if not db: return jsonify([]), 500
     try:
-        data = request.get_json()
-        prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'), data.get('textContent'))
-        question_data = call_ai_for_json(prompt)
-        db.collection('questions').add(question_data)
-        return jsonify({"success": True, "message": f"성공: AI가 텍스트 기반으로 '{question_data.get('title', '새로운')}' 문제를 생성했습니다."})
+        questions_ref = db.collection('questions').stream()
+        questions = []
+        for doc in questions_ref:
+            q = doc.to_dict()
+            q['id'] = doc.id
+            questions.append(q)
+        return jsonify(questions)
     except Exception as e:
-        app.logger.error(f"텍스트 기반 문제 생성 중 오류: {e}", exc_info=True)
-        return jsonify({"success": False, "message": f"텍스트 기반 문제 생성 중 오류 발생: {e}"}), 500
+        app.logger.error(f"문제 목록 조회 오류: {e}", exc_info=True)
+        return jsonify([]), 500
+
+@app.route('/api/delete-questions', methods=['POST'])
+def delete_questions():
+    if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
+    data = request.get_json()
+    ids_to_delete = data.get('ids', [])
+    if not ids_to_delete:
+        return jsonify({"success": False, "message": "삭제할 ID 목록이 없습니다."}), 400
+    
+    try:
+        for q_id in ids_to_delete:
+            db.collection('questions').document(q_id).delete()
+        app.logger.info(f"{len(ids_to_delete)}개 문제 삭제 성공.")
+        return jsonify({"success": True, "message": f"{len(ids_to_delete)}개 문제를 삭제했습니다."})
+    except Exception as e:
+        app.logger.error(f"문제 삭제 중 오류 발생: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "문제 삭제 중 오류가 발생했습니다."}), 500
+
+# --- 사용자 페이지 API ---
 
 @app.route('/api/validate-code', methods=['POST'])
 def validate_code():
@@ -335,7 +361,12 @@ def submit_result():
     
     try:
         scores = { "정보 이해력": [], "논리 분석력": [], "단서 추론력": [], "비판적 사고력": [], "창의적 서술력": [] }
-        metacognition = {"confident_correct": 0, "confident_error": 0, "unsure_correct": 0, "unsure_error": 0}
+        
+        metacognition_details = {
+            'confident_correct': [], 'confident_error': [],
+            'unsure_correct': [], 'unsure_error': []
+        }
+        
         total_time = sum(r.get('time', 0) for r in results)
         correct_count = 0
         
@@ -348,17 +379,36 @@ def submit_result():
             if score_category: scores[score_category].append(100 if is_correct else 0)
 
             confidence = r.get('confidence', 'unsure')
+            time_spent = r.get('time', 0)
+            
             if confidence == 'confident':
-                metacognition['confident_correct' if is_correct else 'confident_error'] += 1
+                metacognition_details['confident_correct' if is_correct else 'confident_error'].append(time_spent)
             else:
-                metacognition['unsure_correct' if is_correct else 'unsure_error'] += 1
+                metacognition_details['unsure_correct' if is_correct else 'unsure_error'].append(time_spent)
 
         final_scores = {cat: (sum(s) / len(s)) if s else 0 for cat, s in scores.items()}
         final_scores["문제 풀이 속도"] = max(0, 100 - (total_time / len(results) - 30)) if results else 0
+        
+        metacognition_summary = {
+            'confident_correct': len(metacognition_details['confident_correct']),
+            'confident_error': len(metacognition_details['confident_error']),
+            'unsure_correct': len(metacognition_details['unsure_correct']),
+            'unsure_error': len(metacognition_details['unsure_error']),
+            'avg_time_cc': sum(metacognition_details['confident_correct']) / len(metacognition_details['confident_correct']) if metacognition_details['confident_correct'] else 0,
+            'avg_time_ce': sum(metacognition_details['confident_error']) / len(metacognition_details['confident_error']) if metacognition_details['confident_error'] else 0,
+            'avg_time_uc': sum(metacognition_details['unsure_correct']) / len(metacognition_details['unsure_correct']) if metacognition_details['unsure_correct'] else 0,
+            'avg_time_ue': sum(metacognition_details['unsure_error']) / len(metacognition_details['unsure_error']) if metacognition_details['unsure_error'] else 0,
+        }
 
         final_report_text = "결과 분석 중..."
         try:
-            final_report_text = generate_dynamic_report_from_ai(user_info.get('name'), final_scores, metacognition)
+            final_report_text = generate_dynamic_report_from_ai(
+                user_info.get('name'), 
+                final_scores, 
+                metacognition_summary,
+                len(results),
+                correct_count
+            )
         except Exception as ai_e:
             app.logger.error(f"AI 동적 리포트 생성 실패: {ai_e}", exc_info=True)
             final_report_text = "AI 리포트 생성에 실패했습니다. 기본 리포트를 표시합니다."
@@ -374,7 +424,7 @@ def submit_result():
         timestamp = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S')
         report_data = {
             "userInfo": user_info, "results": results, "scores": final_scores,
-            "metacognition": metacognition, "reportText": final_report_text,
+            "metacognition": metacognition_summary, "reportText": final_report_text,
             "recommendations": recommendations, "timestamp": timestamp
         }
         db.collection('reports').add(report_data)
@@ -389,37 +439,62 @@ def submit_result():
         sheet.append_row(sheet_row)
         
         return jsonify({
-            "success": True, "analysis": final_scores, "metacognition": metacognition,
+            "success": True, "analysis": final_scores, "metacognition": metacognition_summary,
             "overall_comment": final_report_text, "recommendations": recommendations
         })
     except Exception as e:
         app.logger.error(f"결과 처리 중 오류: {e}", exc_info=True)
         return jsonify({"success": False, "message": f"결과를 전송하는 중 오류가 발생했습니다: {e}"}), 500
 
-def generate_dynamic_report_from_ai(user_name, scores, metacognition):
+def generate_dynamic_report_from_ai(user_name, scores, metacognition, total_questions, correct_count):
     strongest_score, strongest_category, weakest_score, weakest_category = 0, "없음", 100, "없음"
     for category, score in scores.items():
         if category != "문제 풀이 속도":
             if score > strongest_score: strongest_score, strongest_category = score, category
             if score < weakest_score: weakest_score, weakest_category = score, category
     
-    student_data_summary = f"- 학생 이름: {user_name}\n- 가장 뛰어난 능력: {strongest_category} ({strongest_score:.0f}점)\n- 가장 보완이 필요한 능력: {weakest_category} ({weakest_score:.0f}점)\n- 메타인지 분석: '자신만만하게 정답을 맞힌 문항' {metacognition['confident_correct']}개, '자신만만하게 틀린 문항(개념 오적용)' {metacognition['confident_error']}개."
+    student_data_summary = f"""- 학생 이름: {user_name}
+- 총 문항 수: {total_questions}개
+- 정답 수: {correct_count}개
+- 강점 능력: {strongest_category} ({strongest_score:.0f}점)
+- 보완점: {weakest_category} ({weakest_score:.0f}점)
+- 메타인지 상세 분석:
+  - 숙달(자신있게 정답): {metacognition['confident_correct']}개 (평균 {metacognition.get('avg_time_cc', 0):.1f}초)
+  - 오개념(자신있게 오답): {metacognition['confident_error']}개 (평균 {metacognition.get('avg_time_ce', 0):.1f}초)
+  - 성장(고민 후 정답): {metacognition['unsure_correct']}개 (평균 {metacognition.get('avg_time_uc', 0):.1f}초)
+  - 부족(고민 후 오답): {metacognition['unsure_error']}개 (평균 {metacognition.get('avg_time_ue', 0):.1f}초)
+"""
 
-    prompt = f"""당신은 학생의 독서력 테스트 결과를 분석하고, 따뜻하고 격려하는 어조로 맞춤형 종합 소견을 작성하는 최고의 교육 컨설턴트입니다.
-아래 학생의 테스트 결과 데이터를 바탕으로, 학생만을 위한 특별한 종합 소견을 작성해주세요.
-[규칙]
-1. 학생의 이름을 부르며 친근하게 시작해주세요.
-2. 학생의 가장 뛰어난 능력을 먼저 칭찬하며 자신감을 북돋아주세요.
-3. 가장 보완이 필요한 능력에 대해서는, 부정적인 표현 대신 '성장 기회'로 표현하며 구체적인 조언을 한두 문장 덧붙여주세요.
-4. 메타인지 분석 결과를 자연스럽게 녹여내어, 학생이 자신의 학습 습관을 돌아볼 수 있도록 유도해주세요. 특히 '자신만만하게 틀린 문항'이 있었다면, 그 점을 부드럽게 지적하며 꼼꼼함의 중요성을 강조해주세요.
-5. 전체 내용은 3~4개의 문단으로 구성된, 진심이 담긴 하나의 완결된 글로 작성해주세요.
-6. Markdown 형식(#, ##, **)을 사용하여 가독성을 높여주세요.
+    prompt = f"""당신은 대한민국 최고의 교육 데이터 분석가이자 학습 코치입니다. 학생의 독서력 테스트 결과를 바탕으로, 학부모와 학생 모두에게 깊은 통찰력과 구체적인 실천 방안을 제공하는 전문적인 분석 보고서를 작성해야 합니다. 따뜻하지만 분석적인 어조를 유지해주세요.
+
 [학생 테스트 결과 데이터]
 {student_data_summary}
-[종합 소견 작성 시작]
+
+[보고서 작성 규칙]
+1.  **서론: 전체 결과 요약**
+    - 학생의 이름을 부르며 시작합니다.
+    - 총 문항 수와 정답 수를 바탕으로 전체적인 성취도를 간략히 언급합니다.
+    - 학생의 가장 뛰어난 강점 능력을 칭찬하며 긍정적인 분위기를 형성합니다.
+
+2.  **본론 1: 데이터 기반 능력 심층 분석**
+    - '강점 능력'이 왜 뛰어난지 데이터에 근거하여 분석해주세요. (예: "정보 이해력 점수가 높고, 관련 문항을 빠르고 자신있게 풀어낸 것으로 보아, 글의 핵심 내용을 정확하고 신속하게 파악하는 능력이 탁월합니다.")
+    - '보완이 필요한 능력'에 대해서는 '성장 기회'로 표현하며, 구체적인 데이터로 원인을 진단해주세요. (예: "비판적 사고력 문항에서 오답이 많고 풀이 시간이 길었던 점은, 글에 숨겨진 의도를 파악하거나 다른 관점에서 생각하는 연습이 더 필요하다는 신호입니다.")
+
+3.  **본론 2: 메타인지 분석 및 학습 전략 코칭**
+    - '메타인지 상세 분석' 데이터를 활용하여 학생의 학습 습관을 진단합니다.
+    - **'오개념(자신있게 오답)'** 항목이 1개 이상 있다면, 가장 시급하게 교정해야 할 부분임을 강조하세요. 잘못된 지식이나 습관을 확신하고 있을 가능성이 높으므로, 개념을 다시 꼼꼼히 학습할 것을 조언합니다.
+    - **'성장(고민 후 정답)'** 항목은 칭찬의 포인트입니다. 어려운 문제도 포기하지 않고 해결해내는 끈기와 잠재력을 칭찬해주세요.
+    - 풀이 시간 데이터를 종합적으로 활용하여 학생의 독서 스타일(예: 신중형, 속독형)을 간략히 언급해볼 수 있습니다.
+
+4.  **결론: 성장을 위한 구체적인 코칭 가이드**
+    - 분석 내용을 종합하여, 학생의 성장을 위한 1~2가지 핵심 조언을 제시합니다.
+    - **(독서 추천)** 학생의 '보완점'을 길러줄 수 있는 책의 종류(장르)를 추천하고, 왜 그 책이 도움이 되는지, 어느 정도 분량(예: 200페이지 내외)의 책부터 시작하면 좋을지 구체적으로 제안해주세요.
+    - 학생에게 동기를 부여할 수 있는 긍정적인 비전을 제시하며 마무리합니다. (예: "OOO님의 뛰어난 정보 이해력은 미래에 훌륭한 연구원이나 데이터 분석가로 성장할 수 있는 중요한 자질입니다.")
+
+5.  **형식:** 전체 내용은 가독성을 위해 Markdown(#, ##, **)을 사용하여 명확하게 구조화해주세요.
 """
     return call_ai_for_text(prompt, model_name="gemini-2.5-pro")
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    app.run(host='0.0.0.host', port=int(os.environ.get('PORT', 8080)))
