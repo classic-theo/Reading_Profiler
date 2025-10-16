@@ -1,5 +1,17 @@
-Flask==2.2.2
+# Flask & Server
+Flask==2.3.3
 gunicorn==21.2.0
-firebase-admin==6.5.0
-gspread==5.12.4
+
+# Google Cloud & Firebase
+firebase-admin==6.3.0
+google-cloud-firestore==2.14.0
+
+# Google Sheets
+gspread==5.12.2
+google-auth-oauthlib==1.2.0
+
+# HTTP Requests
 requests==2.31.0
+
+# Utilities
+python-dotenv==1.0.0
