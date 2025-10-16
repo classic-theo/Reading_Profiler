@@ -195,11 +195,17 @@ def get_codes():
 def generate_question_from_ai():
     if not db: return jsonify({"success": False, "message": "DB 연결 실패"}), 500
     try:
-        data = request.get_json()
-        prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'))
-        question_data = call_generative_language_api(prompt)
-        db.collection('questions').add(question_data)
-        return jsonify({"success": True, "message": f"성공: AI가 '{question_data.get('title', '새로운')}' 문제를 생성했습니다."})
+        # --- ✨ 테스트를 위해 임시로 단순한 프롬프트를 사용합니다 ---
+        test_prompt = "세상에서 가장 짧은 과학 소설을 한 문장으로 써줘."
+        print(f"테스트 프롬프트 전송: {test_prompt}")
+
+        # call_generative_language_api 함수를 직접 호출합니다.
+        generated_text = call_generative_language_api(test_prompt)
+
+        print(f"AI 응답 성공: {generated_text}")
+        # 테스트 성공 메시지를 반환합니다. 데이터베이스 저장은 생략합니다.
+        return jsonify({"success": True, "message": f"테스트 성공! AI 응답: {generated_text}"})
+
     except Exception as e:
         print(f"AI 문제 생성 중 오류: {e}")
         return jsonify({"success": False, "message": f"AI 문제 생성 중 오류 발생: {e}"}), 500
