@@ -3,201 +3,280 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSI 프로파일러 - 관리자 페이지</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <title>Reading Profiler 관리자</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Noto Sans KR', sans-serif; }
-        .font-orbitron { font-family: 'Orbitron', sans-serif; }
-        .card { background: rgba(17, 24, 39, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .btn-primary { background: linear-gradient(145deg, #0e7490, #164e63); }
-        .progress-bar-container { background-color: #1f2937; }
-        .progress-bar-fill { background: linear-gradient(90deg, #0891b2, #22d3ee); }
+        body { background-color: #f8f9fa; }
+        .container { max-width: 1200px; }
+        .card { margin-bottom: 2rem; }
     </style>
 </head>
-<body class="bg-gray-900 text-white bg-cover bg-fixed" style="background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');">
-    <div class="absolute inset-0 bg-black/60"></div>
-    <div class="relative min-h-screen container mx-auto p-4 md:p-8">
-        <h1 class="text-4xl font-orbitron text-cyan-400 text-center mb-10">Admin Dashboard</h1>
+<body>
+    <div class="container py-5">
+        <h1 class="text-center mb-5">Reading Profiler 관리 시스템</h1>
 
-        <div class="grid md:grid-cols-2 gap-8">
-            <!-- Left Column -->
-            <div class="space-y-8">
-                <!-- Access Code Generator -->
-                <div class="card rounded-2xl p-6">
-                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">접근 코드 관리</h2>
-                    <button id="generate-code-btn" class="w-full btn-primary font-bold py-3 rounded-lg mb-4">새 코드 생성</button>
-                    <div id="new-code-display" class="text-center h-8"></div>
-                    <div class="mt-4 border-t border-gray-700 pt-4">
-                        <h3 class="text-lg font-semibold text-gray-300 mb-2">생성된 코드 목록</h3>
-                        <div id="code-list" class="max-h-60 overflow-y-auto bg-black/20 p-3 rounded-md"></div>
-                    </div>
-                </div>
-
-                <!-- AI Direct Question Generator -->
-                <div class="card rounded-2xl p-6">
-                    <h2 class="text-2xl font-bold text-cyan-300 mb-4">AI 문제 생성기 (직접)</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label for="ai-age-group" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
-                            <select id="ai-age-group" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5">
-                                <option>10-13</option><option>14-16</option><option>17-19</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="ai-category" class="block mb-2 text-sm font-medium text-gray-300">측정 능력 (문제 유형)</label>
-                            <select id="ai-category" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5">
-                                <option value="title">제목 찾기</option>
-                                <option value="theme">주제 찾기</option>
-                                <option value="argument">주장 파악</option>
-                                <option value="inference">의미 추론</option>
-                                <option value="pronoun">지시어 찾기</option>
-                                <option value="sentence_ordering">문장 순서 맞추기</option>
-                                <option value="paragraph_ordering">단락 순서 맞추기</option>
-                            </select>
-                        </div>
-                        <button id="ai-generate-btn" class="w-full btn-primary font-bold py-3 rounded-lg">AI에게 문제 생성 요청</button>
-                    </div>
-                    <div id="ai-status" class="text-center h-12 mt-4"></div>
-                    <div id="ai-progress-container" class="w-full progress-bar-container rounded-full h-2.5 mt-2 hidden">
-                        <div id="ai-progress-bar" class="progress-bar-fill h-2.5 rounded-full" style="width: 0%"></div>
-                    </div>
-                </div>
+        <div class="card">
+            <div class="card-header">
+                <h3>접근 코드 관리</h3>
             </div>
+            <div class="card-body">
+                <button id="generateCodeBtn" class="btn btn-success">새 코드 생성</button>
+                <table class="table mt-3">
+                    <thead>
+                        <tr><th>코드</th><th>생성일</th><th>사용 여부</th><th>사용자</th></tr>
+                    </thead>
+                    <tbody id="codesTableBody"></tbody>
+                </table>
+            </div>
+        </div>
 
-            <!-- Right Column -->
-            <div class="card rounded-2xl p-6">
-                <h2 class="text-2xl font-bold text-cyan-300 mb-4">AI 문제 생성기 (텍스트 기반)</h2>
-                <div class="space-y-4">
-                     <div>
-                        <label for="text-age-group" class="block mb-2 text-sm font-medium text-gray-300">대상 연령</label>
-                        <select id="text-age-group" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5">
-                            <option>10-13</option><option>14-16</option><option>17-19</option>
-                        </select>
+        <div class="card">
+            <div class="card-header">
+                <h3>문제 생성 도구</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>1. 생성 조건 설정</h5>
+                        <div class="mb-3">
+                            <label for="ageGroupSelect" class="form-label">대상 연령</label>
+                            <select id="ageGroupSelect" class="form-select">
+                                <option value="10-13">초등 (10-13세)</option>
+                                <option value="14-16" selected>중등 (14-16세)</option>
+                                <option value="17-19">고등 (17-19세)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="readingVolume" class="form-label">월 평균 독서량 (페이지)</label>
+                            <input type="number" id="readingVolume" class="form-control" placeholder="예: 500">
+                        </div>
+                        <button id="analyzeDifficultyBtn" class="btn btn-secondary">난이도 분석</button>
+                        <p id="difficultyResult" class="mt-2 text-primary fw-bold"></p>
                     </div>
-                    <div>
-                        <label for="text-category" class="block mb-2 text-sm font-medium text-gray-300">측정 능력 (문제 유형)</label>
-                        <select id="text-category" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5">
-                            <option value="title">제목 찾기</option>
-                            <option value="theme">주제 찾기</option>
-                            <option value="argument">주장 파악</option>
-                            <option value="inference">의미 추론</option>
-                            <option value="pronoun">지시어 찾기</option>
-                        </select>
+                    <div class="col-md-6">
+                        <h5>2. 텍스트 기반 생성 (선택)</h5>
+                        <textarea id="textContentInput" class="form-control" rows="6" placeholder="여기에 텍스트를 붙여넣으면 해당 내용 기반으로 문제가 생성됩니다. (비워두면 AI가 주제를 자유롭게 선정)"></textarea>
                     </div>
-                    <div>
-                        <label for="text-input" class="block mb-2 text-sm font-medium text-gray-300">분석할 텍스트 붙여넣기</label>
-                        <textarea id="text-input" rows="8" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5" placeholder="기사, 블로그 포스트 등 문제로 만들고 싶은 글의 본문을 여기에 붙여넣으세요..."></textarea>
-                    </div>
-                    <button id="text-generate-btn" class="w-full btn-primary font-bold py-3 rounded-lg">붙여넣은 텍스트로 문제 생성</button>
                 </div>
-                <div id="text-status" class="text-center h-12 mt-4"></div>
-                <div id="text-progress-container" class="w-full progress-bar-container rounded-full h-2.5 mt-2 hidden">
-                    <div id="text-progress-bar" class="progress-bar-fill h-2.5 rounded-full" style="width: 0%"></div>
+                <hr>
+                <div class="text-center">
+                    <button id="generateSetBtn" class="btn btn-primary btn-lg">7개 유형 한번에 생성하기</button>
+                </div>
+                <div id="generationResult" class="mt-4"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3>문제 은행 관리</h3>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <input type="text" id="searchInput" class="form-control" placeholder="질문이나 지문 내용으로 검색...">
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button id="deleteSelectedBtn" class="btn btn-danger">선택 항목 삭제</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAllCheckbox"></th>
+                                <th>유형</th>
+                                <th>연령</th>
+                                <th>난이도</th>
+                                <th>질문</th>
+                                <th>작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="questionsTableBody"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-    // --- Code Management ---
-    const generateCodeBtn = document.getElementById('generate-code-btn');
-    const newCodeDisplay = document.getElementById('new-code-display');
-    const codeList = document.getElementById('code-list');
+        // --- 전역 변수 ---
+        let allQuestions = [];
+        let analyzedDifficulty = '표준';
 
-    const fetchCodes = async () => {
-        const response = await fetch('/api/get-codes');
-        const codes = await response.json();
-        codeList.innerHTML = codes.map(c => `
-            <div class="flex justify-between items-center text-sm p-1.5 rounded ${c.isUsed ? 'text-gray-500' : 'text-gray-200'}">
-                <span>${c.code}</span>
-                <span class="text-xs">${c.isUsed ? `(사용됨: ${c.userName || ''})` : '(미사용)'}</span>
-            </div>
-        `).join('');
-    };
-
-    generateCodeBtn.addEventListener('click', async () => {
-        newCodeDisplay.textContent = '생성 중...';
-        const response = await fetch('/api/generate-code', { method: 'POST' });
-        const data = await response.json();
-        if (data.success) {
-            newCodeDisplay.innerHTML = `
-                <span class="text-green-400 font-mono text-lg">${data.code}</span>
-                <button onclick="copyToClipboard('${data.code}')" class="ml-2 bg-gray-600 px-2 py-1 rounded text-xs hover:bg-gray-500">복사</button>
-            `;
+        // --- 초기화 ---
+        document.addEventListener('DOMContentLoaded', () => {
             fetchCodes();
-        } else {
-            newCodeDisplay.textContent = `오류: ${data.message}`;
-        }
-    });
-
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => {
-            const originalText = newCodeDisplay.innerHTML;
-            newCodeDisplay.querySelector('button').textContent = '복사됨!';
-            setTimeout(() => { newCodeDisplay.innerHTML = originalText; }, 2000);
+            fetchQuestions();
         });
-    }
 
-    // --- AI Question Generation ---
-    function setupAIGenerator(type) {
-        const generateBtn = document.getElementById(`${type}-generate-btn`);
-        const statusEl = document.getElementById(`${type}-status`);
-        const progressContainer = document.getElementById(`${type}-progress-container`);
-        const progressBar = document.getElementById(`${type}-progress-bar`);
+        // --- 접근 코드 관리 ---
+        const generateCodeBtn = document.getElementById('generateCodeBtn');
+        const codesTableBody = document.getElementById('codesTableBody');
 
-        generateBtn.addEventListener('click', async () => {
-            statusEl.textContent = 'AI가 문제를 생성하고 있습니다... (최대 1분 소요)';
-            progressContainer.classList.remove('hidden');
-            progressBar.style.width = '0%';
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += 10;
-                progressBar.style.width = `${Math.min(progress, 90)}%`;
-            }, 2000);
+        async function fetchCodes() {
+            const response = await fetch('/api/get-codes');
+            const codes = await response.json();
+            codesTableBody.innerHTML = '';
+            codes.forEach(c => {
+                codesTableBody.innerHTML += `
+                    <tr>
+                        <td><strong>${c.code}</strong></td>
+                        <td>${c.createdAt}</td>
+                        <td>${c.isUsed ? '사용됨' : '미사용'}</td>
+                        <td>${c.userName || ''}</td>
+                    </tr>
+                `;
+            });
+        }
+        generateCodeBtn.addEventListener('click', async () => {
+            const response = await fetch('/api/generate-code', { method: 'POST' });
+            if (response.ok) fetchCodes();
+        });
 
-            const ageGroup = document.getElementById(`${type}-age-group`).value;
-            const category = document.getElementById(`${type}-category`).value;
-            const textInput = (type === 'text') ? document.getElementById('text-input').value : null;
+        // --- 문제 생성 ---
+        const analyzeDifficultyBtn = document.getElementById('analyzeDifficultyBtn');
+        const difficultyResult = document.getElementById('difficultyResult');
+        const generateSetBtn = document.getElementById('generateSetBtn');
+        const generationResult = document.getElementById('generationResult');
 
-            const endpoint = (type === 'text') ? '/api/generate-question-from-text' : '/api/generate-question';
-            const body = (type === 'text') ? 
-                { text: textInput, ageGroup: ageGroup, category: category } : 
-                { ageGroup: ageGroup, category: category };
+        analyzeDifficultyBtn.addEventListener('click', () => {
+            const volume = parseInt(document.getElementById('readingVolume').value);
+            if (isNaN(volume) || volume <= 0) {
+                analyzedDifficulty = '표준';
+                difficultyResult.textContent = '유효한 독서량을 입력해주세요. (기본 난이도: 표준)';
+                return;
+            }
+            if (volume < 300) {
+                analyzedDifficulty = '기초';
+                difficultyResult.textContent = `분석 결과: 기초 난이도를 추천합니다. (쉬운 어휘, 짧은 문장)`;
+            } else if (volume >= 300 && volume <= 800) {
+                analyzedDifficulty = '표준';
+                difficultyResult.textContent = `분석 결과: 표준 난이도를 추천합니다. (표준 어휘, 일반적 문장 구조)`;
+            } else {
+                analyzedDifficulty = '심화';
+                difficultyResult.textContent = `분석 결과: 심화 난이도를 추천합니다. (전문/추상적 어휘, 복잡한 문장)`;
+            }
+        });
 
-            try {
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                const data = await response.json();
+        generateSetBtn.addEventListener('click', async () => {
+            const ageGroup = document.getElementById('ageGroupSelect').value;
+            const textContent = document.getElementById('textContentInput').value;
+            
+            generationResult.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p>문제 생성 중... (최대 2~3분 소요될 수 있습니다)</p>';
 
-                clearInterval(interval);
-                progressBar.style.width = '100%';
-                
-                if (data.success) {
-                    statusEl.innerHTML = `<span class="text-green-400">✅ ${data.message}</span>`;
-                    if (type === 'text') document.getElementById('text-input').value = ''; // Clear textarea on success
-                } else {
-                    statusEl.innerHTML = `<span class="text-red-400">❌ 실패: ${data.message}</span>`;
-                }
-            } catch (error) {
-                clearInterval(interval);
-                progressBar.style.width = '100%';
-                statusEl.innerHTML = `<span class="text-red-400">❌ 네트워크 오류: 서버와 통신할 수 없습니다.</span>`;
+            const payload = {
+                ageGroup: ageGroup,
+                difficulty: analyzedDifficulty
+            };
+            if (textContent.trim() !== '') {
+                payload.textContent = textContent;
             }
 
-            setTimeout(() => {
-                progressContainer.classList.add('hidden');
-            }, 3000);
-        });
-    }
+            const response = await fetch('/api/generate-question-set', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            
+            let resultHTML = `<h5>${result.message}</h5><ul class="list-group">`;
+            result.results.forEach(res => {
+                const statusClass = res.status === '성공' ? 'list-group-item-success' : 'list-group-item-danger';
+                resultHTML += `<li class="list-group-item ${statusClass}">${res.category}: ${res.status} ${res.status === '실패' ? `(${res.reason})` : ''}</li>`;
+            });
+            resultHTML += `</ul>`;
+            generationResult.innerHTML = resultHTML;
 
-    // --- Initial Load ---
-    fetchCodes();
-    setupAIGenerator('ai');
-    setupAIGenerator('text');
+            if (result.success) {
+                fetchQuestions();
+            }
+        });
+
+        // --- 문제 은행 관리 ---
+        const searchInput = document.getElementById('searchInput');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+        const questionsTableBody = document.getElementById('questionsTableBody');
+
+        async function fetchQuestions() {
+            const response = await fetch('/api/get-questions');
+            allQuestions = await response.json();
+            renderQuestions(allQuestions);
+        }
+
+        function renderQuestions(questions) {
+            questionsTableBody.innerHTML = '';
+            const categoryMap = {"title":"제목 찾기","theme":"주제 찾기","argument":"주장 파악","inference":"의미 추론","pronoun":"지시어 찾기","sentence_ordering":"문장 순서 맞추기","paragraph_ordering":"단락 순서 맞추기","essay":"창의적 서술력"};
+            questions.forEach(q => {
+                const row = `
+                    <tr>
+                        <td><input type="checkbox" class="question-checkbox" data-id="${q.id}"></td>
+                        <td>${categoryMap[q.category] || q.category}</td>
+                        <td>${q.targetAge}</td>
+                        <td>${q.difficulty || '표준'}</td>
+                        <td>${q.question.substring(0, 50)}...</td>
+                        <td><button class="btn btn-sm btn-info" onclick="regenerateQuestion('${q.id}')">다시 생성</button></td>
+                    </tr>
+                `;
+                questionsTableBody.innerHTML += row;
+            });
+        }
+
+        searchInput.addEventListener('keyup', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            if (!searchTerm) {
+                renderQuestions(allQuestions);
+                return;
+            }
+            const filteredQuestions = allQuestions.filter(q => 
+                (q.question && q.question.toLowerCase().includes(searchTerm)) || 
+                (q.passage && q.passage.toLowerCase().includes(searchTerm))
+            );
+            renderQuestions(filteredQuestions);
+        });
+
+        selectAllCheckbox.addEventListener('change', (e) => {
+            document.querySelectorAll('.question-checkbox').forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+            });
+        });
+
+        deleteSelectedBtn.addEventListener('click', async () => {
+            const selectedIds = Array.from(document.querySelectorAll('.question-checkbox:checked')).map(cb => cb.dataset.id);
+
+            if (selectedIds.length === 0) {
+                alert('삭제할 문제를 선택해주세요.');
+                return;
+            }
+
+            if (confirm(`정말로 ${selectedIds.length}개의 문제를 삭제하시겠습니까?`)) {
+                const response = await fetch('/api/delete-questions', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ ids: selectedIds })
+                });
+                const result = await response.json();
+                alert(result.message);
+                if (result.success) {
+                    fetchQuestions();
+                }
+            }
+        });
+
+        async function regenerateQuestion(questionId) {
+            if (!confirm('이 문제를 새로운 내용으로 다시 생성하시겠습니까?')) return;
+
+            const response = await fetch('/api/regenerate-question', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: questionId })
+            });
+            const result = await response.json();
+            alert(result.message);
+            if (result.success) {
+                fetchQuestions();
+            }
+        }
     </script>
 </body>
 </html>
