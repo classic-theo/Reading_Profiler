@@ -11,6 +11,7 @@ from firebase_admin import credentials, firestore
 import gspread
 import re
 import requests
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
