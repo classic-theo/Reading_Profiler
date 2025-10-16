@@ -363,18 +363,4 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
-    app.run(host='_main_', port=int(os.environ.get('PORT', 8080)))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
