@@ -273,9 +273,16 @@ def get_test():
         }
         questions = []
         for category, needed_count in test_structure.items():
-            docs = db.collection('questions').where('targetAge', '==', age_group).where('category', '==', category).stream()
-            potential_questions = [doc.to_dict() for doc in docs]
-            for q, doc in zip(potential_questions, docs): q['id'] = doc.id
+            # ✨ 수정된 부분 1: Firestore 쿼리 방식을 권장 사항에 맞게 개선
+            query = db.collection('questions').where(filter=FieldFilter('targetAge', '==', age_group)).where(filter=FieldFilter('category', '==', category))
+            docs = query.stream()
+
+            # ✨ 수정된 부분 2: 반복문을 한 번만 사용하도록 로직을 변경하여 'id'가 누락되지 않도록 수정
+            potential_questions = []
+            for doc in docs:
+                q = doc.to_dict()
+                q['id'] = doc.id
+                potential_questions.append(q)
             
             num_to_select = min(needed_count, len(potential_questions))
             if num_to_select > 0:
