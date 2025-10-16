@@ -9,19 +9,17 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import gspread
 import re
-import requests # 새로운 통신 방식을 위해 requests 라이브러리 사용
+import requests
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
 
-# --- 2. 외부 서비스 초기화 (API 키 방식) ---
+# --- 2. 외부 서비스 초기화 ---
 db = None
 sheet = None
-# Render.com 환경 변수에서 API 키 로드
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') 
 
 try:
-    # Firebase와 Google Sheets는 이전과 동일하게 서비스 계정(마스터키) 사용
     google_creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
     cred_dict = {}
     if google_creds_json:
@@ -42,7 +40,6 @@ try:
 
 except Exception as e:
     print(f"🚨 외부 서비스 초기화 실패: {e}")
-
 
 # --- 3. 핵심 데이터 및 설정 ---
 CATEGORY_MAP = {
@@ -131,13 +128,14 @@ def call_generative_language_api(prompt, model_name="gemini-1.5-pro-latest"):
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
     
+    # --- ✨✨✨ 여기가 수정된 부분입니다 ✨✨✨ ---
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+    
     headers = {'Content-Type': 'application/json'}
     data = {'contents': [{'parts': [{'text': prompt}]}]}
     
-    # AI 응답 시간이 길어질 수 있으므로 timeout을 120초로 넉넉하게 설정
     response = requests.post(url, headers=headers, data=json.dumps(data), timeout=120)
-    response.raise_for_status() # 200번대 응답이 아닐 경우 오류 발생
+    response.raise_for_status()
     
     result = response.json()
     
@@ -155,7 +153,6 @@ def call_generative_language_api(prompt, model_name="gemini-1.5-pro-latest"):
             return json.loads(raw_text)
         except json.JSONDecodeError:
             raise ValueError(f"AI가 유효한 JSON을 생성하지 못했습니다: {raw_text}")
-
 
 # --- 5. 라우팅 (API 엔드포인트) ---
 @app.route('/')
@@ -358,7 +355,6 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]
 """
-    # 동적 리포트 생성에는 Flash 모델을 사용하여 비용과 속도 균형 맞춤
     return call_generative_language_api(prompt, model_name="gemini-1.5-flash-latest")
 
 # --- 서버 실행 ---
