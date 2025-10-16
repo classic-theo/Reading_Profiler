@@ -8,10 +8,10 @@ from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, jsonify, request
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 import gspread
 import re
 import requests
-from google.cloud.firestore_v1.base_query import FieldFilter
 
 # --- 1. Flask 앱 초기화 ---
 app = Flask(__name__, template_folder='templates')
@@ -58,7 +58,7 @@ SCORE_CATEGORY_MAP = {
     "essay": "창의적 서술력"
 }
 
-# --- 4. AI 관련 함수 (Generative Language API 방식) ---
+# --- 4. AI 관련 함수 ---
 def get_detailed_prompt(category, age_group, text_content=None):
     if age_group == "10-13":
         level_instruction = "대한민국 초등학교 4~6학년 국어 교과서 수준의 어휘와 문장 구조를 사용해줘. '야기하다', '고찰하다' 같은 어려운 한자어는 '일으킨다', '살펴본다'처럼 쉬운 말로 풀어 써줘."
@@ -121,12 +121,24 @@ def get_detailed_prompt(category, age_group, text_content=None):
    - "targetAge": "{age_group}"
    - "type": "multiple_choice"
 """
+
+    if category == "pronoun":
+        pronoun_instruction = "7. 질문 생성 시, '밑줄 친' 이라는 표현 대신, 지시어를 괄호로 감싸고 (예: (이것은)) 질문에 '괄호 안의 단어가 가리키는 것은?'과 같이 표현해줘."
+        base_prompt = base_prompt.replace('6. JSON 형식 준수:', f'{pronoun_instruction}\n6. JSON 형식 준수:')
+
+    if category in ["sentence_ordering", "paragraph_ordering"]:
+        base_prompt = base_prompt.replace('4. 객관식 보기 (options):', '# 객관식 보기 없음') \
+                                 .replace('"options": ["보기1", "보기2", "보기3", "보기4"]', '"options": []') \
+                                 .replace('"answer": "정답 보기"', '"answer": ""') \
+                                 .replace('"distractor_explanation": "매력적인 오답에 대한 해설"', '"distractor_explanation": ""') \
+                                 .replace('"type": "multiple_choice"', '"type": "essay"')
+
     if category == "essay":
         base_prompt = base_prompt.replace('4. 객관식 보기 (options):', '# 객관식 보기 없음').replace('"options": ["보기1", "보기2", "보기3", "보기4"]', '"options": []').replace('"answer": "정답 보기"', '"answer": ""').replace('"distractor_explanation": "매력적인 오답에 대한 해설"', '"distractor_explanation": ""').replace('"type": "multiple_choice"', '"type": "essay"')
     
     return base_prompt
 
-def call_generative_language_api(prompt, model_name="gemini-2.5-pro"):
+def call_ai_for_json(prompt, model_name="gemini-2.5-pro"):
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
     
@@ -153,6 +165,24 @@ def call_generative_language_api(prompt, model_name="gemini-2.5-pro"):
             return json.loads(raw_text)
         except json.JSONDecodeError:
             raise ValueError(f"AI가 유효한 JSON을 생성하지 못했습니다: {raw_text}")
+
+def call_ai_for_text(prompt, model_name="gemini-2.5-pro"):
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
+    
+    url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    data = {'contents': [{'parts': [{'text': prompt}]}]}
+    
+    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=120)
+    response.raise_for_status()
+    
+    result = response.json()
+    
+    if not result.get('candidates'):
+        raise ValueError(f"AI가 유효한 응답을 생성하지 못했습니다. 응답 내용: {result}")
+
+    return result['candidates'][0]['content']['parts'][0]['text']
 
 # --- 5. 라우팅 (API 엔드포인트) ---
 @app.route('/')
@@ -197,7 +227,6 @@ def generate_question_from_ai():
         app.logger.error("DB 연결 실패: Firestore 클라이언트가 초기화되지 않았습니다.")
         return jsonify({"success": False, "message": "DB 연결 실패"}), 500
 
-    # 1. 입력값 검증
     data = request.get_json()
     if not data or 'category' not in data or 'ageGroup' not in data:
         app.logger.warning(f"잘못된 요청: 필수 파라미터 누락. 요청 데이터: {data}")
@@ -207,18 +236,17 @@ def generate_question_from_ai():
     age_group = data.get('ageGroup')
 
     try:
-        # 2. AI 프롬프트 생성 및 API 호출
         app.logger.info(f"AI 문제 생성을 시작합니다. Category: {category}, Age: {age_group}")
         prompt = get_detailed_prompt(category, age_group)
-        question_data = call_generative_language_api(prompt)
+        question_data = call_ai_for_json(prompt)
 
-        # 3. AI 응답 데이터 검증
         required_keys = ['passage', 'question', 'options', 'answer']
-        if not all(key in question_data for key in required_keys):
-            app.logger.error(f"AI 응답 데이터 검증 실패: 필수 키 누락. 응답: {question_data}")
-            raise ValueError("AI가 생성한 데이터에 필수 항목이 누락되었습니다.")
+        # 'essay' 유형은 options와 answer가 비어있으므로 검증에서 제외
+        if question_data.get('type') != 'essay':
+            if not all(key in question_data for key in required_keys):
+                app.logger.error(f"AI 응답 데이터 검증 실패: 필수 키 누락. 응답: {question_data}")
+                raise ValueError("AI가 생성한 데이터에 필수 항목이 누락되었습니다.")
 
-        # 4. 데이터베이스 저장
         db.collection('questions').add(question_data)
         title = question_data.get('title', '새로운')
         app.logger.info(f"성공: AI가 '{title}' 문제를 생성하여 DB에 저장했습니다.")
@@ -226,11 +254,9 @@ def generate_question_from_ai():
         return jsonify({"success": True, "message": f"성공: AI가 '{title}' 문제를 생성했습니다."})
 
     except ValueError as ve:
-        # 데이터 검증 실패 또는 AI 응답 파싱 실패 시
         app.logger.error(f"데이터 처리 오류: {ve}")
         return jsonify({"success": False, "message": f"데이터 처리 중 오류 발생: {ve}"}), 500
     except Exception as e:
-        # 그 외 모든 예외 처리
         app.logger.error(f"AI 문제 생성 중 심각한 오류 발생: {e}", exc_info=True)
         return jsonify({"success": False, "message": f"서버 내부 오류가 발생했습니다: {e}"}), 500
 
@@ -240,7 +266,7 @@ def generate_question_from_text():
     try:
         data = request.get_json()
         prompt = get_detailed_prompt(data.get('category'), data.get('ageGroup'), data.get('textContent'))
-        question_data = call_generative_language_api(prompt)
+        question_data = call_ai_for_json(prompt)
         db.collection('questions').add(question_data)
         return jsonify({"success": True, "message": f"성공: AI가 텍스트 기반으로 '{question_data.get('title', '새로운')}' 문제를 생성했습니다."})
     except Exception as e:
@@ -273,11 +299,9 @@ def get_test():
         }
         questions = []
         for category, needed_count in test_structure.items():
-            # ✨ 수정된 부분 1: Firestore 쿼리 방식을 권장 사항에 맞게 개선
             query = db.collection('questions').where(filter=FieldFilter('targetAge', '==', age_group)).where(filter=FieldFilter('category', '==', category))
             docs = query.stream()
 
-            # ✨ 수정된 부분 2: 반복문을 한 번만 사용하도록 로직을 변경하여 'id'가 누락되지 않도록 수정
             potential_questions = []
             for doc in docs:
                 q = doc.to_dict()
@@ -288,9 +312,11 @@ def get_test():
             if num_to_select > 0:
                 questions.extend(random.sample(potential_questions, num_to_select))
         
+        question_number = 1
         for q in questions:
-             q['title'] = f"[사건 파일 No.{q['id'][:3]}] - {CATEGORY_MAP.get(q.get('category'), '기타')}"
+             q['title'] = f"{question_number}. {CATEGORY_MAP.get(q.get('category'), '기타')}"
              q['category_kr'] = CATEGORY_MAP.get(q.get('category'), '기타')
+             question_number += 1
         
         random.shuffle(questions)
         app.logger.info(f"문제 생성 완료: {len(questions)}개 문항 ({age_group} 대상)")
@@ -392,7 +418,7 @@ def generate_dynamic_report_from_ai(user_name, scores, metacognition):
 {student_data_summary}
 [종합 소견 작성 시작]
 """
-    return call_generative_language_api(prompt, model_name="gemini-2.5-pro")
+    return call_ai_for_text(prompt, model_name="gemini-2.5-pro")
 
 # --- 서버 실행 ---
 if __name__ == '__main__':
